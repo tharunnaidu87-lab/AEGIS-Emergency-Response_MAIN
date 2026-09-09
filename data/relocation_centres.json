@@ -1,0 +1,80 @@
+[
+  {
+    "id": "RC-01",
+    "name": "Government Higher Secondary School",
+    "latitude": 13.145,
+    "longitude": 80.235,
+    "space_capacity": 1000,
+    "water_capacity": 900,
+    "food_capacity": 1100,
+    "sanitation_capacity": 850,
+    "medical_capacity": 950,
+    "current_occupancy": 200,
+    "risk_status": "SAFE"
+  },
+  {
+    "id": "RC-02",
+    "name": "Community Relief Centre",
+    "latitude": 13.165,
+    "longitude": 80.245,
+    "space_capacity": 800,
+    "water_capacity": 700,
+    "food_capacity": 750,
+    "sanitation_capacity": 650,
+    "medical_capacity": 700,
+    "current_occupancy": 100,
+    "risk_status": "SAFE"
+  },
+  {
+    "id": "RC-03",
+    "name": "District Indoor Stadium",
+    "latitude": 13.175,
+    "longitude": 80.215,
+    "space_capacity": 1500,
+    "water_capacity": 1400,
+    "food_capacity": 1600,
+    "sanitation_capacity": 1300,
+    "medical_capacity": 1200,
+    "current_occupancy": 300,
+    "risk_status": "SAFE"
+  },
+  {
+    "id": "RC-04",
+    "name": "Riverside Public Hall",
+    "latitude": 13.125,
+    "longitude": 80.255,
+    "space_capacity": 700,
+    "water_capacity": 650,
+    "food_capacity": 700,
+    "sanitation_capacity": 600,
+    "medical_capacity": 600,
+    "current_occupancy": 50,
+    "risk_status": "UNSAFE"
+  },
+  {
+    "id": "RC-05",
+    "name": "North Sector Relief Hub (demo)",
+    "latitude": 13.2,
+    "longitude": 80.2,
+    "space_capacity": 1000,
+    "water_capacity": 900,
+    "food_capacity": 950,
+    "sanitation_capacity": 800,
+    "medical_capacity": 850,
+    "current_occupancy": 100,
+    "risk_status": "SAFE"
+  },
+  {
+    "id": "RC-06",
+    "name": "West Sector School Shelter (demo)",
+    "latitude": 13.17,
+    "longitude": 80.15,
+    "space_capacity": 900,
+    "water_capacity": 850,
+    "food_capacity": 950,
+    "sanitation_capacity": 800,
+    "medical_capacity": 750,
+    "current_occupancy": 100,
+    "risk_status": "SAFE"
+  }
+]

@@ -1,0 +1,73 @@
+[
+  {
+    "id": "HAB-01",
+    "name": "Riverbank Village",
+    "latitude": 13.1320,
+    "longitude": 80.2220,
+
+    "population": 1800,
+
+    "children": 320,
+    "elderly": 210,
+    "special_assistance": 45,
+
+    "flood_susceptibility": 0.90,
+    "landslide_susceptibility": 0.10,
+    "historical_disaster_score": 0.80,
+    "vulnerability_score": 0.75
+  },
+
+  {
+    "id": "HAB-02",
+    "name": "Hillview Village",
+    "latitude": 13.1700,
+    "longitude": 80.2050,
+
+    "population": 1200,
+
+    "children": 240,
+    "elderly": 160,
+    "special_assistance": 28,
+
+    "flood_susceptibility": 0.25,
+    "landslide_susceptibility": 0.92,
+    "historical_disaster_score": 0.72,
+    "vulnerability_score": 0.65
+  },
+
+  {
+    "id": "HAB-03",
+    "name": "Greenfield Colony",
+    "latitude": 13.1500,
+    "longitude": 80.2350,
+
+    "population": 2400,
+
+    "children": 410,
+    "elderly": 280,
+    "special_assistance": 60,
+
+    "flood_susceptibility": 0.62,
+    "landslide_susceptibility": 0.20,
+    "historical_disaster_score": 0.55,
+    "vulnerability_score": 0.58
+  },
+
+  {
+    "id": "HAB-04",
+    "name": "Central Town",
+    "latitude": 13.1180,
+    "longitude": 80.1900,
+
+    "population": 3500,
+
+    "children": 600,
+    "elderly": 340,
+    "special_assistance": 75,
+
+    "flood_susceptibility": 0.30,
+    "landslide_susceptibility": 0.15,
+    "historical_disaster_score": 0.35,
+    "vulnerability_score": 0.42
+  }
+]

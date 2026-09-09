@@ -1,0 +1,46 @@
+[
+  {
+    "id": "HOSP-01",
+    "name": "City General Hospital",
+    "latitude": 13.14,
+    "longitude": 80.21,
+    "available_beds": 25,
+    "icu_beds": 5,
+    "trauma_center": true,
+    "burn_unit": false,
+    "status": "AVAILABLE"
+  },
+  {
+    "id": "HOSP-02",
+    "name": "Metro Multi Speciality Hospital",
+    "latitude": 13.155,
+    "longitude": 80.225,
+    "available_beds": 40,
+    "icu_beds": 10,
+    "trauma_center": true,
+    "burn_unit": true,
+    "status": "AVAILABLE"
+  },
+  {
+    "id": "HOSP-03",
+    "name": "Community Health Centre",
+    "latitude": 13.115,
+    "longitude": 80.185,
+    "available_beds": 8,
+    "icu_beds": 0,
+    "trauma_center": false,
+    "burn_unit": false,
+    "status": "AVAILABLE"
+  },
+  {
+    "id": "HOSP-04",
+    "name": "North Sector Emergency Hospital (demo)",
+    "latitude": 13.19,
+    "longitude": 80.19,
+    "available_beds": 60,
+    "icu_beds": 12,
+    "trauma_center": true,
+    "burn_unit": true,
+    "status": "AVAILABLE"
+  }
+]

@@ -1,0 +1,42 @@
+// Tests the actual geometry/movement exports without a browser or test dependency.
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import ts from '../frontend/node_modules/typescript/lib/typescript.js';
+
+const root = path.resolve(import.meta.dirname, '..');
+const out = path.join(root, '.cache', 'routing-test.mjs');
+const source = fs.readFileSync(path.join(root, 'frontend/src/routing.ts'), 'utf8');
+let compiled = ts.transpileModule(source, { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText;
+compiled = compiled.replace('from "react"', 'from ' + JSON.stringify(pathToFileURL(path.join(root, 'frontend/node_modules/react/index.js')).href));
+compiled = compiled.replaceAll('import.meta.env.VITE_OSRM_URL', 'undefined');
+fs.mkdirSync(path.dirname(out), { recursive: true });
+fs.writeFileSync(out, compiled);
+const { prepareRoute, movementProgress, demoTravelDuration, distanceKm, fetchRoadRoutes, assessRoadScenario } = await import(pathToFileURL(out).href);
+
+assert.equal(prepareRoute([])(.5), undefined);
+assert.deepEqual(prepareRoute([[1, 2]])(.5), [1, 2]);
+const sample = prepareRoute([[0, 0], [0, 0], [1, 0], [3, 0]]);
+assert.deepEqual(sample(0), [0, 0]);
+assert.deepEqual(sample(1), [3, 0]);
+assert.ok(Math.abs(sample(.5)[0] - 1.5) < .0001, 'Distance-weighted movement, including repeated vertices');
+assert.ok(distanceKm([0, 0], [180, 0]) > 20000, 'Antipodal distance remains finite');
+const route = { duration: 600, distance: 4000, geometry: { type: 'LineString', coordinates: [[0, 0], [1, 0], [2, 0]] }, source: 'OSRM' };
+const start = Date.now();
+const unit = { status: 'EN_ROUTE', departed_at: new Date(start).toISOString(), updated_at: new Date(start).toISOString() };
+assert.equal(movementProgress(unit, route, start), 0);
+assert.equal(movementProgress(unit, route, start + demoTravelDuration(route)), 1);
+assert.equal(movementProgress({ ...unit, status: 'ISSUE', updated_at: new Date(start + demoTravelDuration(route) / 2).toISOString() }, route, start + 99999), .5);
+assert.equal(movementProgress({ ...unit, status: 'ON_SCENE' }, route, start), 1);
+assert.equal(assessRoadScenario([route], true).index, 0);
+assert.ok(assessRoadScenario([route], true).reason.includes('no clear OSRM alternative'));
+const detour = { ...route, duration: 700, geometry: { type: 'LineString', coordinates: [[0, 0], [0, 1], [2, 1], [2, 0]] } };
+assert.equal(assessRoadScenario([route, detour], true).index, 1, 'Real returned alternative avoids the simulated segment');
+globalThis.fetch = async () => { throw Error('Offline'); };
+const fallback = await fetchRoadRoutes([80.1, 13.1], [80.2, 13.2]);
+assert.equal(fallback[0].source, 'FALLBACK');
+assert.equal(fallback.length, 1, 'No invented detours');
+assert.equal(fallback[0].geometry.coordinates.length, 2);
+assert.ok(assessRoadScenario(fallback, true).reason.includes('cannot be evaluated'));
+console.log('PASS: geometry, distance-weighted interpolation, repeated vertices, movement timing, frozen issue state, arrival, safer alternative, and honest offline fallback (16 assertions).');

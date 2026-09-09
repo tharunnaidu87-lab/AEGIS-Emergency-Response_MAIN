@@ -1,0 +1,100 @@
+[
+  {
+    "id": "AMB-01",
+    "name": "Ambulance 01",
+    "type": "AMBULANCE",
+    "latitude": 13.12,
+    "longitude": 80.18,
+    "status": "BUSY"
+  },
+  {
+    "id": "AMB-02",
+    "name": "Ambulance 02",
+    "type": "AMBULANCE",
+    "latitude": 13.145,
+    "longitude": 80.205,
+    "status": "AVAILABLE"
+  },
+  {
+    "id": "AMB-03",
+    "name": "Ambulance 03",
+    "type": "AMBULANCE",
+    "latitude": 13.11,
+    "longitude": 80.22,
+    "status": "BUSY"
+  },
+  {
+    "id": "POL-01",
+    "name": "Police Unit 01",
+    "type": "POLICE",
+    "latitude": 13.125,
+    "longitude": 80.19,
+    "status": "AVAILABLE"
+  },
+  {
+    "id": "POL-02",
+    "name": "Police Unit 02",
+    "type": "POLICE",
+    "latitude": 13.155,
+    "longitude": 80.215,
+    "status": "AVAILABLE"
+  },
+  {
+    "id": "FIRE-01",
+    "name": "Fire Engine 01",
+    "type": "FIRE_ENGINE",
+    "latitude": 13.118,
+    "longitude": 80.195,
+    "status": "AVAILABLE"
+  },
+  {
+    "id": "FIRE-02",
+    "name": "Fire Engine 02",
+    "type": "FIRE_ENGINE",
+    "latitude": 13.16,
+    "longitude": 80.23,
+    "status": "AVAILABLE"
+  },
+  {
+    "id": "BOAT-01",
+    "name": "Rescue Boat 01",
+    "type": "RESCUE_BOAT",
+    "latitude": 13.135,
+    "longitude": 80.24,
+    "status": "AVAILABLE"
+  },
+  {
+    "id": "BOAT-02",
+    "name": "Rescue Boat 02",
+    "type": "RESCUE_BOAT",
+    "latitude": 13.15,
+    "longitude": 80.25,
+    "status": "AVAILABLE"
+  },
+  {
+    "id": "RESCUE-01",
+    "name": "Rescue Team 01",
+    "type": "RESCUE_TEAM",
+    "latitude": 13.13,
+    "longitude": 80.21,
+    "status": "AVAILABLE"
+  },
+  {
+    "id": "RESCUE-02",
+    "name": "Rescue Team 02",
+    "type": "RESCUE_TEAM",
+    "latitude": 13.165,
+    "longitude": 80.225,
+    "status": "AVAILABLE"
+  },
+  {
+    "id": "AMB-04",
+    "name": "Reserve Ambulance 04 (demo)",
+    "type": "AMBULANCE",
+    "latitude": 13.175,
+    "longitude": 80.2,
+    "status": "AVAILABLE",
+    "capacity": 6,
+    "reserve_for_staging": true
+  }
+]

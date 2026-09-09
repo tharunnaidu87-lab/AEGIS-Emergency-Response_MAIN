@@ -1,0 +1,532 @@
+:root { font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; color-scheme: dark; }
+#root { width: 100%; min-height: 100vh; }
+body { margin: 0; }
+/* ============================================================
+   COMMAND CENTER V2
+   INTEGRATED OVERVIEW / WHAT-IF / RELOCATION
+   ============================================================ */
+
+.command-module-tabs {
+  margin-top: 10px;
+
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(
+        0,
+        1fr
+      )
+    );
+
+  border:
+    1px solid
+    var(--line);
+
+  background:
+    var(--bg-elevated);
+}
+
+
+.command-module-tabs button {
+  min-height: 52px;
+
+  padding:
+    0 16px;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 10px;
+
+  position: relative;
+
+  border: 0;
+
+  border-right:
+    1px solid
+    var(--line);
+
+  background:
+    transparent;
+
+  color:
+    var(--muted);
+
+  font-size: 10px;
+
+  font-weight: 900;
+
+  letter-spacing:
+    0.13em;
+
+  cursor: pointer;
+}
+
+
+.command-module-tabs button:last-child {
+  border-right: 0;
+}
+
+
+.command-module-tabs button:hover {
+  color:
+    var(--text);
+
+  background:
+    rgba(
+      255,
+      255,
+      255,
+      0.025
+    );
+}
+
+
+.command-module-tabs button.active {
+  color:
+    var(--text);
+
+  background:
+    var(--panel);
+
+  box-shadow:
+    inset 0 -2px
+    var(--accent);
+}
+
+
+.command-module-tabs button small {
+  color:
+    var(--accent);
+
+  font-size: 8px;
+}
+
+
+.module-alert {
+  min-width: 25px;
+
+  height: 20px;
+
+  margin-left: auto;
+
+  padding:
+    0 5px;
+
+  display: inline-grid;
+
+  place-items: center;
+
+  border:
+    1px solid
+    rgba(
+      224,
+      82,
+      67,
+      0.5
+    );
+
+  background:
+    rgba(
+      224,
+      82,
+      67,
+      0.1
+    );
+
+  color:
+    #ef8d84;
+
+  font-size: 8px;
+}
+
+
+.integrated-command-module {
+  margin-top:
+    10px;
+
+  padding:
+    18px;
+
+  border:
+    1px solid
+    var(--line);
+
+  background:
+    rgba(
+      15,
+      19,
+      19,
+      0.88
+    );
+}
+
+
+.integrated-module-heading {
+  padding:
+    8px 4px 20px;
+
+  display: flex;
+
+  align-items:
+    flex-end;
+
+  justify-content:
+    space-between;
+
+  gap: 20px;
+
+  border-bottom:
+    1px solid
+    var(--line-soft);
+}
+
+
+.integrated-module-heading h2 {
+  margin:
+    12px 0 6px;
+
+  font-size:
+    clamp(
+      25px,
+      4vw,
+      38px
+    );
+
+  font-weight: 500;
+}
+
+
+.integrated-module-heading p {
+  max-width:
+    650px;
+
+  margin: 0;
+
+  color:
+    var(--muted);
+
+  font-size: 12px;
+
+  line-height: 1.6;
+}
+
+
+.simulation-safety {
+  min-width:
+    220px;
+
+  padding:
+    13px 16px;
+
+  border:
+    1px solid
+    rgba(
+      214,
+      166,
+      76,
+      0.35
+    );
+
+  background:
+    rgba(
+      214,
+      166,
+      76,
+      0.055
+    );
+
+  text-align:
+    right;
+}
+
+
+.simulation-safety strong,
+.simulation-safety small {
+  display: block;
+}
+
+
+.simulation-safety strong {
+  color:
+    var(--warning);
+
+  font-size: 10px;
+
+  letter-spacing:
+    0.1em;
+}
+
+
+.simulation-safety small {
+  margin-top:
+    5px;
+
+  color:
+    var(--muted-2);
+
+  font-size: 8px;
+
+  letter-spacing:
+    0.08em;
+}
+
+
+.relocation-warning {
+  border-color:
+    rgba(
+      224,
+      82,
+      67,
+      0.42
+    );
+
+  background:
+    rgba(
+      224,
+      82,
+      67,
+      0.065
+    );
+}
+
+
+.relocation-warning strong {
+  color:
+    #ef8378;
+}
+
+
+.integrated-whatif-grid {
+  margin-top:
+    16px;
+
+  display: grid;
+
+  grid-template-columns:
+    0.9fr 1fr 1fr;
+
+  gap: 10px;
+}
+
+
+.integrated-whatif-grid
+.scenario-controls,
+.integrated-whatif-grid
+.scenario-result {
+  margin: 0;
+
+  min-height:
+    330px;
+}
+
+
+.scenario-delta-board {
+  margin-top:
+    10px;
+
+  padding:
+    16px;
+
+  border:
+    1px solid
+    var(--line);
+
+  background:
+    var(--panel);
+}
+
+
+.scenario-delta-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      4,
+      1fr
+    );
+
+  gap: 1px;
+
+  background:
+    var(--line);
+}
+
+
+.scenario-delta-grid > div {
+  padding:
+    16px;
+
+  background:
+    var(--bg-elevated);
+}
+
+
+.scenario-delta-grid small {
+  display: block;
+
+  margin-bottom:
+    8px;
+
+  color:
+    var(--muted-2);
+
+  font-size: 8px;
+
+  letter-spacing:
+    0.12em;
+}
+
+
+.scenario-delta-grid strong {
+  font-size:
+    18px;
+
+  color:
+    var(--text);
+}
+
+
+.command-relocation-grid {
+  margin-top:
+    16px;
+
+  display: grid;
+
+  grid-template-columns:
+    minmax(
+      260px,
+      0.75fr
+    )
+    minmax(
+      0,
+      1.6fr
+    );
+
+  gap: 10px;
+}
+
+
+.command-risk-column,
+.command-relocation-main {
+  padding:
+    16px;
+
+  border:
+    1px solid
+    var(--line);
+
+  background:
+    var(--panel);
+}
+
+
+.open-command-module {
+  width: 100%;
+
+  padding:
+    13px;
+
+  border:
+    1px solid
+    var(--accent);
+
+  background:
+    rgba(
+      224,
+      82,
+      67,
+      0.08
+    );
+
+  color:
+    #ef8a80;
+
+  font-size: 9px;
+
+  font-weight: 900;
+
+  letter-spacing:
+    0.12em;
+
+  cursor: pointer;
+}
+
+
+.open-command-module:hover {
+  background:
+    var(--accent);
+
+  color: white;
+}
+
+
+@media (
+  max-width: 1050px
+) {
+
+  .integrated-whatif-grid {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  .command-relocation-grid {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  .scenario-delta-grid {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+}
+
+
+@media (
+  max-width: 650px
+) {
+
+  .command-module-tabs {
+    grid-template-columns:
+      1fr;
+  }
+
+
+  .command-module-tabs button {
+    border-right: 0;
+
+    border-bottom:
+      1px solid
+      var(--line);
+  }
+
+
+  .integrated-module-heading {
+    align-items:
+      stretch;
+
+    flex-direction:
+      column;
+  }
+
+
+  .simulation-safety {
+    width: 100%;
+
+    text-align:
+      left;
+  }
+
+
+  .scenario-delta-grid {
+    grid-template-columns:
+      1fr;
+  }
+
+}
