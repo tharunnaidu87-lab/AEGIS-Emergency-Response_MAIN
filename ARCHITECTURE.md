@@ -33,7 +33,11 @@ Analysis completes synchronously before the report receipt. Command briefly repl
 | `frontend/src/BackendIntelligence.tsx` | Backend severity, evidence, forecast and staging explanations |
 | `frontend/src/UnifiedCommandModules.tsx` | Field operations, coordination, prediction, readiness and audit |
 | `frontend/src/ScenarioStressTest.tsx` | Backend shelter-closure and road-delay comparisons |
-| `frontend/src/IntakeChannels.tsx` | SMS/transcript normalization and optional browser speech capture |
+| `frontend/src/IntakeChannels.tsx` | Shared SMS/voice review UI calling backend NLP |
+| `frontend/src/useVoiceIntake.ts`, `useIntakeLocation.ts` | Browser speech/GPS permissions, lifecycle and error handling |
+| `frontend/src/IntakeReportDetails.tsx` | Original channel text and reviewed observations in Command |
+| `backend/intake_nlp.py` | Validated local NLP, confidence, unknowns and server-generated intake metadata |
+| `backend/telecom/provider.py` | Future verified provider-event interface; no connected number |
 | `frontend/src/ErrorBoundary.tsx` | Recoverable rendering failure screen |
 | `backend/main.py` | FastAPI routes, lifecycle, CORS and errors |
 | `backend/models.py` | Validated report and scenario schemas |
@@ -47,6 +51,8 @@ Analysis completes synchronously before the report receipt. Command briefly repl
 The original backup directory is retained. Six unreferenced intelligence implementations were removed after consolidation into active modules. App and the database repository still have legacy sections that can be extracted in future maintenance.
 
 ## Shared incident state
+
+SMS/CALL observations now retain optional `intake_json`: original-text extraction, nullable reviewed fields, corrections and unknown values. The original message remains in `raw_content`. This per-report record is not overwritten by fused operational estimates. See [INTAKE_HANDOVER.md](INTAKE_HANDOVER.md).
 
 Reports preserve submitted observations. Same-type reports within 90 minutes can fuse when within 3 km, or within 5 km with sufficient location-name similarity. This heuristic can over-merge nearby emergencies; no manual split interface exists.
 
@@ -78,6 +84,7 @@ Demo travel lasts 18-55 seconds and uses persisted departure time, so refresh do
 | --- | --- |
 | `GET /health` | Actual database connectivity |
 | `POST /reports` | Validate, save, fuse, analyse |
+| `POST /intake/parse`, `GET /intake/capabilities` | Side-effect-free local extraction and provider status |
 | `GET /reports`, `GET /reports/{id}` | Saved reports and analysis |
 | `PATCH /reports/{id}/status` | Acknowledgment |
 | `POST /reports/{id}/dispatch` | Atomic, idempotent dispatch |

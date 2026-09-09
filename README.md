@@ -89,6 +89,8 @@ Use HTTPS for GPS, persistent database storage inside the deployed project and b
 
 ## Learn and present the project
 
+Voice and text reporting are available from the online form's reporting-method selector. They use backend local NLP, editable review, browser GPS and the same report/Command pipeline. See [INTAKE_HANDOVER.md](INTAKE_HANDOVER.md) for examples, exact changes, deployment settings and test limitations. Restart the backend after this upgrade.
+
 - [ARCHITECTURE.md](ARCHITECTURE.md): files, state ownership, APIs.
 - [PROJECT_HANDOVER.md](PROJECT_HANDOVER.md): algorithms and extension points.
 - [DEMO_GUIDE.md](DEMO_GUIDE.md): presentation steps and talking points.

@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import db
 import operations
+from intake_nlp import Extraction, ParseRequest, parse_intake
 from models import AnalysisRequest, Coordinates, ReportCreateRequest
 from engines.capacity_engine import calculate_all_centres
 from engines.relocation_engine import create_relocation_plan
@@ -108,6 +109,18 @@ def resources():
 def submit_report(request: ReportCreateRequest):
     report = operations.submit(request.model_dump())
     return {"status": "REPORT_STORED", "fusion_id": report["fusion_id"], "report": report}
+
+
+@app.post("/intake/parse", response_model=Extraction)
+def parse_emergency_intake(request: ParseRequest):
+    return parse_intake(request)
+
+
+@app.get("/intake/capabilities")
+def intake_capabilities():
+    return {"parser": "LOCAL_RULE_BASED", "language": "en", "requires_api_key": False,
+            "telecom": "PROVIDER_READY_NOT_CONFIGURED", "telephone_number": None,
+            "speech": "BROWSER_CAPABILITY_DEPENDENT"}
 
 
 @app.get("/reports")

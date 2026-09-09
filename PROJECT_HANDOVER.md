@@ -1,5 +1,7 @@
 # AEGIS project handover
 
+The 9 September voice/text upgrade adds local backend NLP, review/correction, GPS permission handling and original-message inspection in Command. Read [INTAKE_HANDOVER.md](INTAKE_HANDOVER.md) for its schemas, confidence/default rules, tests and deployment instructions. The original engines and dispatch authority remain in place.
+
 ## What happens internally after Submit?
 
 The citizen supplies type, location, coordinates, people, injuries, trapped people and hazard clues. The form sends a structured report to FastAPI. Pydantic rejects invalid coordinates, non-finite values, negative counts, or injured/trapped counts greater than the total.

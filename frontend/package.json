@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "node ../scripts/test-routing.mjs",
+    "test": "node ../scripts/test-routing.mjs && node ../scripts/test-intake-api.mjs",
     "typecheck": "tsc -b"
   },
   "dependencies": {

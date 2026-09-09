@@ -167,6 +167,7 @@ export interface AegisResponse {
 // SHARED REPORT
 // ============================================================
 export interface SharedReport {
+    intake?: IntakeMetadata | null;
     injured?: number;
     trapped?: number;
     id: string;
@@ -238,6 +239,7 @@ export interface ReassignmentResponse {
 // CREATE REPORT REQUEST
 // ============================================================
 export interface CreateReportRequest {
+    intake_unknown_fields?: IntakeUnknownField[];
     injured?: number;
     trapped?: number;
     source: ReportSource;
@@ -300,6 +302,45 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
     }
     const data: T = await response.json();
     return data;
+}
+
+export type IntakeUnknownField = 'people_affected' | 'injured' | 'trapped' | 'spreading' | 'structural_damage';
+export interface IntakeExtraction {
+    source: 'SMS' | 'CALL';
+    method: 'LOCAL_RULE_BASED';
+    incident_type: EmergencyType | null;
+    location: string | null;
+    people_affected: number | null;
+    injured: number | null;
+    trapped: number | null;
+    vulnerable_groups: string[];
+    spreading: boolean | null;
+    structural_damage: boolean | null;
+    hazard_intensity: number;
+    hazard_basis: string;
+    description: string;
+    latitude: number | null;
+    longitude: number | null;
+    gps_verified: boolean;
+    confidence: number;
+    confidence_factors: Record<string, number>;
+    missing_fields: string[];
+    questions: string[];
+    warnings: string[];
+    evidence: Record<string, string>;
+}
+export interface IntakeMetadata {
+    extraction: IntakeExtraction;
+    reviewed: Record<string, string | number | boolean | string[] | null>;
+    unknown_fields: IntakeUnknownField[];
+    corrected_fields: string[];
+    confidence_basis: string;
+}
+export function parseIntake(input: { source: 'SMS' | 'CALL'; text: string; latitude?: number; longitude?: number; gps_verified: boolean }, signal: AbortSignal) {
+    // Render cold starts may exceed the normal operational polling timeout.
+    return apiFetch<IntakeExtraction>('/intake/parse', { method: 'POST',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+        signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]) });
 }
 // ============================================================
 // HEALTH
