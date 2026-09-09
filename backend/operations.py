@@ -3,6 +3,7 @@ import json
 from collections import Counter
 import db
 from engines.aegis_engine import run_aegis_analysis
+from intake_nlp import report_intake_metadata
 
 ACTIVE = ("ASSIGNED", "ACCEPTED", "EN_ROUTE", "ON_SCENE", "ISSUE")
 ASSIGNMENT_NEXT = {
@@ -76,12 +77,20 @@ def upgrade_legacy_analyses():
 
 def submit(payload):
     # Preserve the existing report schema and audit/fusion repository.
+    intake = report_intake_metadata(payload)
     with db.WRITE_LOCK:
         report = db.create_report(payload, {"status": "AEGIS_ANALYSIS_COMPLETE", "result": calculate(payload)})
         with db.get_connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
             connection.execute("UPDATE reports SET injured=?, trapped=? WHERE id=?",
                                (payload.get("injured", 0), payload.get("trapped", 0), report["id"]))
+            if intake:
+                connection.execute("UPDATE reports SET intake_json=? WHERE id=?", (json.dumps(intake), report["id"]))
+                db._insert_audit_event(connection, report_id=report["id"], fusion_id=report["fusion_id"],
+                    event_type="INTAKE_REVIEWED", actor="CITIZEN",
+                    message=f"{payload['source']} intake reviewed and submitted; local NLP did not dispatch resources.",
+                    metadata={"method": "LOCAL_RULE_BASED", "corrected_fields": intake["corrected_fields"],
+                              "unknown_fields": intake["unknown_fields"]})
             group, _ = refresh_fusion(connection, report["fusion_id"])
             status = max((r["status"] for r in group), key=REPORT_ORDER.index)
             connection.execute("UPDATE reports SET status=? WHERE fusion_id=?", (status, report["fusion_id"]))

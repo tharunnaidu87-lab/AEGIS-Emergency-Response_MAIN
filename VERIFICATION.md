@@ -1,5 +1,23 @@
 # AEGIS verification record
 
+## 9 September 2026: voice/text upgrade
+
+The combined `scripts/browser_intake_smoke.py` suite passed the existing core flow and all new intake checks. Core regression report: `AEGIS-20260909082708-FF4FD1`, in an isolated verification database. The newest `.cache/verification` artifacts supersede the earlier screenshots below.
+
+- Backend: 34 tests passed, including local parsing, negation, unknowns, review persistence, schema migration, cross-channel fusion and unchanged dispatch.
+- Frontend tests: 16 routing assertions plus 12 intake API assertions, including configured production origins and cancellation.
+- Final `npm.cmd --prefix frontend run build` and `npm.cmd --prefix frontend run lint`: PASS; zero lint findings. The existing MapLibre vendor-size warning remains. Initial application JavaScript is about 334 kB (101 kB gzip).
+- Python compile check: PASS. With `$env:PYTHONPYCACHEPREFIX="$PWD\.cache\intake-pycache"`, ran `.\backend\.venv\Scripts\python.exe -m py_compile backend/main.py backend/models.py backend/db.py backend/operations.py backend/intake_nlp.py backend/telecom/provider.py`. The final backend test rerun passed all 34 tests.
+- Intake browser checks: SMS/CALL parsing, correction and submission; tracking and Command originals/source; emulated GPS grant/denial/manual entry; unknown details; processing/submission failures; cold-start feedback; stale response cancellation; unsupported speech; microphone error/no speech/network error/retry; recorder cleanup.
+- Speech recognition used simulated browser events. GPS used Chrome emulation and permission controls; no real hardware accuracy or vendor speech-service connection is claimed.
+- Final browser log inspection: zero uncaught runtime exceptions, zero console warnings/errors and zero backend/frontend server tracebacks. Expected network errors remain for unavailable map services and deliberately failed requests.
+- The first combined attempt hit local API timeouts. A subsequent run exposed navigation timing in the test harness; waits were corrected. The final combined run passed without increasing production API timeouts to hide failures.
+- New artifacts: [intake result](.cache/verification/intake-result.json), [SMS mobile](.cache/verification/intake-sms-mobile.png), [voice mobile](.cache/verification/intake-voice-mobile.png), [Command source](.cache/verification/intake-command-source.png).
+
+See [INTAKE_HANDOVER.md](INTAKE_HANDOVER.md) for exact modified/created files, commands and deployment limitations. No real telecom provider/number was connected, and no cloud deployment was performed.
+
+## 8 September 2026: original completion baseline
+
 Verified on 8 September 2026 in:
 `C:\Users\DELL\OneDrive\Desktop\AEGIS-MAIN`
 

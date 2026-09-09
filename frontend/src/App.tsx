@@ -6,6 +6,8 @@ import { useRoadRoutes, assessRoadScenario, movementProgress } from "./routing";
 import { usePolling } from "./usePolling";
 import { canonicalReportId } from "./api";
 import IntakeChannels from "./IntakeChannels";
+import IntakeMethodSelector from "./IntakeMethodSelector";
+import IntakeReportDetails from "./IntakeReportDetails";
 import BackendIntelligence from "./BackendIntelligence";
 const OperationalMap = lazy(() => import("./OperationalMap"));
 import { dispatchReport, getReport, listAssignments, listReports, runAegisAnalysis, submitReport, updateAssignmentStatus, updateReportStatus, type AegisResponse, type Assignment, type AssignmentStatus, type EmergencyType, type ReportStatus, type SharedReport, } from "./api";
@@ -576,6 +578,8 @@ function ReportPage() {
 
 
       <main className="citizen-page">
+
+        <IntakeMethodSelector active="APP" />
 
         <section className="citizen-intro">
 
@@ -1697,6 +1701,7 @@ function CommandPage() {
             <div>{(selected.analysis.result.pipeline || []).slice(0, Math.ceil(revealStage * 10 / 7)).map(stage => <span key={stage.stage}>{stage.stage} | {stage.duration_ms.toFixed(1)} ms</span>)}</div>
           </details>
           {revealStage >= 2 && <BackendIntelligence result={selected.analysis.result} condensed />}
+          {original && <IntakeReportDetails report={original} />}
 
 <div className="command-module-tabs">
 

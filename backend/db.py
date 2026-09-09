@@ -788,6 +788,7 @@ def init_db():
         _ensure_column(connection, "assignments", "departed_at", "TEXT")
         _ensure_column(connection, "reports", "injured", "INTEGER NOT NULL DEFAULT 0")
         _ensure_column(connection, "reports", "trapped", "INTEGER NOT NULL DEFAULT 0")
+        _ensure_column(connection, "reports", "intake_json", "TEXT")
 
 
 # ============================================================
@@ -808,6 +809,7 @@ def decode_report(
     report = dict(
         row
     )
+    report["intake"] = json.loads(report.pop("intake_json", None) or "null")
 
 
     try:

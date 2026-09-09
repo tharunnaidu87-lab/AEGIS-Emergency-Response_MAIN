@@ -1,6 +1,7 @@
 """Validated API inputs shared by intake and scenario calculations."""
 from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from intake_nlp import UnknownField
 
 
 class Coordinates(BaseModel):
@@ -44,12 +45,15 @@ class AnalysisRequest(Coordinates):
 
 
 class ReportCreateRequest(AnalysisRequest):
+    intake_unknown_fields: list[UnknownField] = Field(default_factory=list, max_length=5)
     source: Literal["APP", "SMS", "CALL"] = "APP"
     raw_content: str = Field(default="", max_length=10000)
     phone: str = Field(default="", max_length=40)
 
     @model_validator(mode="after")
     def intake_is_baseline(self):
+        if self.source in {"SMS", "CALL"} and len(self.raw_content) > 5000:
+            raise ValueError("Keep the intake message within 5000 characters")
         if self.scenario != Scenario():
             raise ValueError("What-if overrides belong to /aegis-analyse, not citizen intake")
         return self
