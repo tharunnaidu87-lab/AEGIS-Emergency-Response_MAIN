@@ -25,7 +25,16 @@ for (const [name, base, expected] of [['local', undefined, '/api'], ['render', '
   await api.submitReport({source:'SMS', raw_content:'Flood here', intake_unknown_fields:['injured']});
   assert.equal(calls[1].url, expected + '/reports');
   assert.equal(JSON.parse(calls[1].options.body).source, 'SMS');
+  const audio = new Blob(['recorded-audio'], {type:'audio/webm;codecs=opus'});
+  const voiceController = new AbortController();
+  await api.transcribeVoice(audio, voiceController.signal);
+  assert.equal(calls[2].url, expected + '/voice/transcribe');
+  assert.equal(calls[2].options.body, audio);
+  assert.equal(calls[2].options.headers['Content-Type'], 'audio/webm;codecs=opus');
+  assert.equal(calls[2].options.headers.Authorization, undefined);
+  voiceController.abort();
+  assert.equal(calls[2].options.signal.aborted, true);
   globalThis.fetch = async () => new Response('{}', {status:503});
   await assert.rejects(api.parseIntake({source:'CALL', text:'Fire', gps_verified:false}, new AbortController().signal));
 }
-console.log('PASS: intake API local/production URLs, payloads, cancellation, shared report submission and failure handling (12 assertions).');
+console.log('PASS: intake and voice API URLs, audio payloads, no frontend provider authentication, cancellation, shared submission and errors (22 assertions).');

@@ -4,6 +4,8 @@ import json
 import os
 import subprocess
 import time
+import uuid
+import sys
 import urllib.request
 from pathlib import Path
 from websockets.sync.client import connect
@@ -14,10 +16,10 @@ ARTIFACTS.mkdir(parents=True, exist_ok=True)
 
 
 class Browser:
-    def __init__(self):
+    def __init__(self, fake_media=False):
         self.events = []
         self.counter = 0
-        profile = ROOT / ".cache" / "browser-profile"
+        profile = ROOT / ".cache" / ("browser-profile-" + uuid.uuid4().hex[:8])
         environment = dict(os.environ, TEMP=str(ROOT / ".cache" / "tmp"), TMP=str(ROOT / ".cache" / "tmp"))
         chrome = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
         self.log = (ARTIFACTS / "chrome.log").open("w", encoding="utf-8")
@@ -25,7 +27,8 @@ class Browser:
             "--disable-background-networking", "--disable-component-update", "--disable-breakpad",
             "--disable-crash-reporter", "--remote-debugging-port=9222",
             "--user-data-dir=" + str(profile), "--disk-cache-dir=" + str(profile / "cache"),
-            "--crash-dumps-dir=" + str(profile / "crashes"), "--window-size=1440,1000", "about:blank"],
+            "--crash-dumps-dir=" + str(profile / "crashes"), "--window-size=1440,1000", "about:blank"] +
+            (["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] if fake_media else []),
             cwd=ROOT, env=environment, stdout=self.log, stderr=self.log, creationflags=subprocess.CREATE_NO_WINDOW)
         deadline = time.time() + 25
         while True:
@@ -43,6 +46,10 @@ class Browser:
         self.send("Runtime.enable")
         self.send("Page.enable")
         self.send("Log.enable")
+        self.send("Network.enable")
+        # Keep UI regression deterministic when public map services are unreachable.
+        # The application must exercise its honest offline-map/routing fallback.
+        self.send("Network.setBlockedURLs", urls=["https://*.tile.openstreetmap.org/*", "https://tile.openstreetmap.org/*", "https://router.project-osrm.org/*"])
         self.send("Emulation.setDeviceMetricsOverride", width=1440, height=1000, deviceScaleFactor=1, mobile=False)
 
     def send(self, method, **params):
@@ -106,7 +113,7 @@ class Browser:
             self.log.close()
 
 
-def main(extra_flow=None, run_core=True):
+def main(extra_flow=None, run_core=True, backend_module="main:app", fake_media=False, production=False):
     import uuid
     servers = []
     logs = []
@@ -114,11 +121,13 @@ def main(extra_flow=None, run_core=True):
     env = dict(os.environ, AEGIS_DB_PATH=".cache/browser-" + uuid.uuid4().hex[:8] + ".sqlite",
                AEGIS_BACKEND_URL="http://127.0.0.1:8002", PYTHONDONTWRITEBYTECODE="1",
                TEMP=str(ROOT / ".cache" / "tmp"), TMP=str(ROOT / ".cache" / "tmp"),
-               npm_config_cache=str(ROOT / ".cache" / "npm"))
+               npm_config_cache=str(ROOT / ".cache" / "npm"), SARVAM_API_KEY="", NVIDIA_API_KEY="")
     commands = [
-        [str(ROOT / "backend/.venv/Scripts/python.exe"), "-B", "-m", "uvicorn", "main:app", "--app-dir", "backend", "--host", "127.0.0.1", "--port", "8002"],
+        [str(ROOT / "backend/.venv/Scripts/python.exe"), "-B", "-m", "uvicorn", backend_module, "--app-dir", "backend", "--host", "127.0.0.1", "--port", "8002"],
         [r"C:\Program Files\nodejs\node.exe", str(ROOT / "frontend/node_modules/vite/bin/vite.js"), "--host", "127.0.0.1", "--port", "5174", "--strictPort"],
     ]
+    if production:
+        commands[1].insert(2, "preview")
     try:
         for index, command in enumerate(commands):
             log = (ARTIFACTS / ("server-" + str(index) + ".log")).open("w", encoding="utf-8")
@@ -136,7 +145,7 @@ def main(extra_flow=None, run_core=True):
                     if time.time() > deadline:
                         raise
                     time.sleep(.2)
-        browser = Browser()
+        browser = Browser(fake_media=fake_media)
         base = "http://127.0.0.1:5174"
         report_id, route_status, scenario_text = None, "NOT_EXERCISED", ""
         if run_core:
@@ -155,7 +164,8 @@ def main(extra_flow=None, run_core=True):
             browser.click("TRACK MY REPORT")
             browser.wait("document.body.innerText.includes('BACKEND ANALYSIS RECEIVED')")
             assert browser.evaluate("new URLSearchParams(location.search).get('report')") == report_id
-            browser.wait("document.querySelectorAll('.operation-map-marker').length >= 4")
+            # Cold dev-module transforms can be slow on a synced Windows workspace.
+            browser.wait("document.querySelectorAll('.operation-map-marker').length >= 4", timeout=60)
             browser.evaluate("window.testCanvas=document.querySelector('canvas')")
             browser.screenshot("command-desktop")
             print("PASS selected incident, pipeline and independent map layers", flush=True)
@@ -266,4 +276,4 @@ def main(extra_flow=None, run_core=True):
 
 
 if __name__ == "__main__":
-    main()
+    main(production='--production' in sys.argv)

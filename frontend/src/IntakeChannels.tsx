@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { parseIntake, submitReport, type IntakeExtraction, type IntakeUnknownField } from './api';
+import { parseIntake, submitReport, type IntakeExtraction, type IntakeUnknownField, type SpeechMetadataInput } from './api';
 import IntakeMethodSelector from './IntakeMethodSelector';
-import { useVoiceIntake } from './useVoiceIntake';
+import { useRecordedVoice } from './useRecordedVoice';
 import { useIntakeLocation } from './useIntakeLocation';
 
 type Channel = 'SMS' | 'CALL';
@@ -20,6 +20,7 @@ function ChannelPage({ source }: { source: Channel }) {
   const [draft, setDraft] = useState<IntakeExtraction | null>(null);
   const [parseState, setParseState] = useState<'idle' | 'waiting' | 'parsing' | 'ready' | 'error'>('idle');
   const [retry, setRetry] = useState(0);
+  const [callRequest, setCallRequest] = useState<({ text: string; latitude?: number; longitude?: number; gps_verified: boolean } & SpeechMetadataInput) | null>(null);
   const [slow, setSlow] = useState(false);
   const [editing, setEditing] = useState(false);
   const [phone, setPhone] = useState('');
@@ -31,27 +32,43 @@ function ChannelPage({ source }: { source: Channel }) {
   const sendingLock = useRef(false);
   const mounted = useRef(true);
   const location = useIntakeLocation();
-  const voice = useVoiceIntake(text, changeText);
+  const voice = useRecordedVoice(changeText);
   const { latitude, longitude, gpsVerified, valid } = location;
 
   function changeText(value: string) {
     setText(value.slice(0, 5000)); setParsed(null); setDraft(null);
+    setCallRequest(null);
     setParseState(value.trim() ? 'waiting' : 'idle'); setSendError('');
   }
+  function analyzeCall() {
+    setCallRequest({ text, gps_verified: gpsVerified, ...voice.metadata,
+      ...(valid ? { latitude: Number(latitude), longitude: Number(longitude) } : {}) });
+  }
+  function startVoice(retryRecording = false) {
+    setCallRequest(null); setParsed(null); setDraft(null);
+    setParseState(text.trim() ? 'waiting' : 'idle');
+    void voice.start(retryRecording);
+  }
+  // CALL starts only on explicit Analyze. Moving/editing GPS must not rebill NLP.
+  const smsLatitude = source === 'SMS' ? latitude : '';
+  const smsLongitude = source === 'SMS' ? longitude : '';
+  const smsGps = source === 'SMS' && gpsVerified;
+  const smsValid = source === 'SMS' && valid;
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; };
   }, []);
   useEffect(() => {
-    if (!text.trim() || voice.listening) return;
+    if (!text.trim() || voice.listening || voice.processing || (source === 'CALL' && !callRequest)) return;
     const controller = new AbortController();
     let slowTimer: ReturnType<typeof setTimeout> | undefined;
     const timer = setTimeout(async () => {
       setParseState('parsing'); setSlow(false);
       slowTimer = setTimeout(() => setSlow(true), 8000);
       try {
-        const result = await parseIntake({ source, text, gps_verified: gpsVerified,
-          ...(valid ? { latitude: Number(latitude), longitude: Number(longitude) } : {}) }, controller.signal);
+        const result = await parseIntake(source === 'CALL' ? { source, ...callRequest! } :
+          { source, text, gps_verified: smsGps,
+            ...(smsValid ? { latitude: Number(smsLatitude), longitude: Number(smsLongitude) } : {}) }, controller.signal);
         if (controller.signal.aborted) return;
         const preserveEdits = parsedText.current === text;
         setParsed(result);
@@ -66,7 +83,7 @@ function ChannelPage({ source }: { source: Channel }) {
       }
     }, 650);
     return () => { controller.abort(); clearTimeout(timer); clearTimeout(slowTimer); };
-  }, [text, source, latitude, longitude, gpsVerified, valid, retry, voice.listening]);
+  }, [text, source, smsLatitude, smsLongitude, smsGps, smsValid, retry, voice.listening, voice.processing, callRequest]);
 
   function edit<K extends keyof IntakeExtraction>(key: K, value: IntakeExtraction[K]) {
     setDraft(current => current ? { ...current, [key]: value } : current);
@@ -76,7 +93,7 @@ function ChannelPage({ source }: { source: Channel }) {
     const value = draft[key as 'injured'];
     return value !== null && (!Number.isInteger(value) || value < 0 || value > 1000000);
   }) || (draft.people_affected !== null && Math.max(draft.injured || 0, draft.trapped || 0) > draft.people_affected) : false;
-  const canSend = draft && parsed && parseState === 'ready' && !voice.listening &&
+  const canSend = draft && parsed && parseState === 'ready' && !voice.listening && !voice.processing &&
     draft.incident_type && draft.location?.trim() && valid && !countInvalid && !sending;
   async function send() {
     if (!canSend || !draft || sendingLock.current) return;
@@ -91,6 +108,7 @@ function ChannelPage({ source }: { source: Channel }) {
         spreading: draft.spreading ?? false, structural_damage: draft.structural_damage ?? false,
         vulnerable_groups: draft.vulnerable_groups, hazard_intensity: draft.hazard_intensity,
         intake_unknown_fields: unknownFields.filter(key => draft[key] === null),
+        intake_result_id: parsed?.result_id,
       });
       if (mounted.current) setReceipt(response.report.id);
     } catch {
@@ -139,27 +157,32 @@ function ChannelPage({ source }: { source: Channel }) {
           <section className="intake-compose">
             <h2><span>01</span> {source === 'CALL' ? 'Tell us what happened' : 'Write your message'}</h2>
             {source === 'CALL' && <div className="voice-controls">
-              <p className={'voice-status' + (voice.listening ? ' listening' : '')} role="status">{voice.listening ? 'LISTENING... Press Stop when finished.' : 'READY TO RECORD OR REVIEW'}</p>
+              <small>AUTO-DETECT LANGUAGE</small>
+              <p className={'voice-status' + (voice.listening ? ' listening' : '')} role="status">{voice.listening ? `LISTENING... ${voice.seconds}s / 25s` : voice.processing ? voice.phase === 'acquiring' ? 'OPENING MICROPHONE...' : 'PROCESSING AUDIO...' : 'READY TO RECORD OR REVIEW'}</p>
               <div className="voice-actions">
-                <button className="intake-primary" disabled={voice.listening || sending || !voice.supported} onClick={() => voice.start()}>START SPEAKING</button>
+                <button className="intake-primary" disabled={voice.listening || voice.processing || sending || !voice.supported} onClick={() => startVoice()}>START SPEAKING</button>
                 <button disabled={!voice.listening} onClick={voice.stop}>STOP</button>
-                <button disabled={voice.listening || sending || !voice.supported} onClick={() => voice.start(true)}>RETRY</button>
-                <button disabled={voice.listening || sending} onClick={() => transcript.current?.focus()}>EDIT TRANSCRIPT</button>
+                <button disabled={voice.listening || voice.processing || sending || !voice.supported} onClick={() => startVoice(true)}>RETRY</button>
+                <button disabled={voice.listening || voice.processing || sending} onClick={() => transcript.current?.focus()}>EDIT TRANSCRIPT</button>
               </div>
-              <small>Real browser capability when supported. Microphone permission is required; your browser may use an online speech service. English speech is supported by this local parser.</small>
+              <small>Record up to 25 seconds. Browser noise suppression and echo cancellation are requested. Audio goes through AEGIS to multilingual transcription. Browser fallback uses your browser locale and may use its online service.</small>
+              {voice.detectedLanguage && <p>Detected language: <strong>{voice.detectedLanguage}</strong></p>}
+              {voice.browserLanguage && <p>Browser recognition locale: {voice.browserLanguage} (not automatic language detection)</p>}
+              {voice.notice && <p className="intake-notice">{voice.notice}</p>}
               {!voice.supported && <p className="intake-notice">Speech recognition is unavailable in this browser. Type or paste your transcript below.</p>}
               {voice.error && <p className="intake-notice" role="alert">{voice.error}</p>}
             </div>}
             <label className="transcript-label" htmlFor="intake-text">{source === 'CALL' ? 'Live transcript / edit transcript' : 'Emergency message'}</label>
-            <textarea id="intake-text" ref={transcript} rows={6} maxLength={5000} value={text} readOnly={voice.listening || sending}
+            <textarea id="intake-text" ref={transcript} rows={6} maxLength={5000} value={text} readOnly={voice.listening || voice.processing || sending}
               onChange={e => changeText(e.target.value)} placeholder={source === 'CALL'
                 ? 'There is a fire near the college hostel. Twenty people are inside and two are injured.'
                 : 'Flood near Anna Nagar bridge. Water is increasing quickly. Around thirty people are trapped.'} />
-            <div className="intake-text-footer"><small>{text.length} / 5000 characters</small><small>Text is processed by local backend rules.</small></div>
+            <div className="intake-text-footer"><small>{text.length} / 5000 characters</small><small>Review names, numbers and location before confirming.</small></div>
+            {source === 'CALL' && <button className="intake-primary" disabled={!text.trim() || voice.listening || voice.processing || sending || parseState === 'parsing'} onClick={analyzeCall}>ANALYZE EMERGENCY</button>}
             <div className="intake-parse-status" role="status">
               {voice.listening ? 'Listening. Nothing will be sent until you stop and confirm.' :
                 parseState === 'parsing' ? slow ? 'AEGIS may be waking up. Keep this page open; your text is safe.' : 'AEGIS is understanding your message...' :
-                parseState === 'waiting' ? 'Preparing your message...' : parseState === 'ready' ? 'Details ready. Please review them before sending.' :
+                parseState === 'waiting' ? source === 'CALL' ? 'Review your transcript, then press ANALYZE EMERGENCY.' : 'Preparing your message...' : parseState === 'ready' ? 'Details ready. Please review them before sending.' :
                 parseState === 'error' ? 'AEGIS could not process the message. Your text is kept. Check your connection or retry while the backend wakes up.' :
                 'Start with what happened and where. Unknown details can stay blank.'}
               {parseState === 'error' && <button onClick={() => setRetry(value => value + 1)}>RETRY ANALYSIS</button>}
@@ -189,8 +212,14 @@ function ChannelPage({ source }: { source: Channel }) {
                 <div><dt>Spreading</dt><dd>{label(draft.spreading)}</dd></div>
                 <div><dt>Structural damage</dt><dd>{label(draft.structural_damage)}</dd></div>
               </dl>
-              <div className="intake-confidence"><strong>{Math.round((parsed?.confidence ?? 0) * 100)}%</strong><span>Extraction confidence<br /><small>Local rule score for the original text. Separate from severity and incident evidence quality.</small></span></div>
-              <p className="intake-truth">LOCAL / RULE-BASED NLP. Check names and numbers; this score is not a validated probability.</p>
+              <div className="intake-confidence"><strong>{parsed?.confidence == null ? 'Unrated' : Math.round(parsed.confidence * 100) + '%'}</strong><span>Extraction confidence<br /><small>{parsed?.confidence_basis || 'Heuristic local rule score; not a calibrated probability.'}</small></span></div>
+              <p className="intake-truth">{parsed?.method} {parsed?.nlp_model && `| ${parsed.nlp_model}`}. Check names and numbers. Dispatch remains a Command decision.</p>
+              <div className="intake-questions" aria-label="Clarification questions">
+                {parsed?.questions.map(question => <p key={question}>{question}</p>)}
+              </div>
+              <details className="intake-defaults"><summary>Field confidence (uncalibrated)</summary>
+                <dl className="intake-summary">{Object.entries(parsed?.field_confidence || {}).map(([field, score]) => <div key={field}><dt>{field.replaceAll('_', ' ')}</dt><dd>{score === null ? 'Unrated' : `${Math.round(score * 100)}% (uncalibrated)`}</dd></div>)}</dl>
+              </details>
               {parsed?.warnings.map(warning => <p className="intake-notice" key={warning}>{warning}</p>)}
               <button className="intake-edit" aria-expanded={editing} disabled={sending} onClick={() => setEditing(!editing)}>{editing ? 'DONE EDITING' : 'EDIT DETAILS'}</button>
               {editing ? <fieldset disabled={sending} className="intake-fields"><legend>Correct the interpreted details</legend>

@@ -50,6 +50,8 @@ def verify_intake(browser, base):
         e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true})); })()""" % (json.dumps(selector), json.dumps(selector), json.dumps(str(value))))
 
     def ready():
+        if browser.evaluate("location.pathname==='/call' && !document.querySelector('.intake-parse-status').innerText.includes('Details ready') && [...document.querySelectorAll('button')].some(b=>b.textContent==='ANALYZE EMERGENCY' && !b.disabled)"):
+            browser.click('ANALYZE EMERGENCY')
         browser.wait("document.querySelector('.intake-parse-status').innerText.includes('Details ready')")
 
     def report_count():
@@ -71,6 +73,7 @@ def verify_intake(browser, base):
         assert browser.evaluate("document.querySelector('.command-intake-record').innerText.includes('Extraction confidence:')")
 
     browser.send("Page.addScriptToEvaluateOnNewDocument", source=SPEECH_STUB)
+    browser.send("Page.addScriptToEvaluateOnNewDocument", source="Object.defineProperty(window,'MediaRecorder',{configurable:true,value:undefined})")
     browser.send("Browser.setPermission", permission={"name": "geolocation"}, setting="granted", origin=base)
     browser.send("Emulation.setGeolocationOverride", latitude=13.13, longitude=80.22, accuracy=20)
     browser.send("Emulation.setDeviceMetricsOverride", width=390, height=844, deviceScaleFactor=1, mobile=True)

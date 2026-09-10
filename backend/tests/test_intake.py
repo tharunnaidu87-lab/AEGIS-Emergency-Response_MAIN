@@ -1,5 +1,6 @@
 """NLP correctness, unknowns and integration through the existing report pipeline."""
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -102,6 +103,9 @@ class ParserTests(unittest.TestCase):
 
 class IntakeApiTests(unittest.TestCase):
     def setUp(self):
+        self.provider_env = patch.dict(os.environ, {"SARVAM_API_KEY": "", "NVIDIA_API_KEY": ""})
+        self.provider_env.start()
+        self.addCleanup(self.provider_env.stop)
         directory = ROOT / ".cache" / "tests"
         directory.mkdir(parents=True, exist_ok=True)
         self.temp = tempfile.TemporaryDirectory(dir=directory)
