@@ -6,6 +6,7 @@ prototype; Command-only routes are enforced here at the API boundary.
 """
 
 import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -91,7 +92,7 @@ def validate_command_token(token: str) -> dict:
         if not username or not hmac.compare_digest(str(payload.get("sub", "")), username):
             raise ValueError("invalid subject")
         return payload
-    except (ValueError, TypeError, KeyError, json.JSONDecodeError, base64.binascii.Error) as error:
+    except (ValueError, TypeError, KeyError, json.JSONDecodeError, binascii.Error) as error:
         raise ValueError("invalid command session") from error
 
 
@@ -148,6 +149,7 @@ def _is_command_only(method: str, path: str) -> bool:
     exact = {
         ("POST", "/aegis-analyse"),
         ("POST", "/incident"),
+        ("GET", "/resources"),
         ("GET", "/relocation-centres"),
         ("POST", "/relocation-plan"),
         ("POST", "/hazard-analysis"),
