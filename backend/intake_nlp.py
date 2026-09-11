@@ -19,6 +19,9 @@ class ParseRequest(BaseModel):
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     gps_verified: bool = False
+    speech_result_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
+    browser_transcript: str | None = Field(default=None, max_length=5000)
+    browser_language: str | None = Field(default=None, max_length=40)
 
     @model_validator(mode="after")
     def coordinate_pair(self):
@@ -32,7 +35,14 @@ class ParseRequest(BaseModel):
 class Extraction(BaseModel):
     model_config = ConfigDict(allow_inf_nan=False, extra="forbid")
     source: Channel
-    method: Literal["LOCAL_RULE_BASED"] = "LOCAL_RULE_BASED"
+    method: Literal["LOCAL_RULE_BASED", "ADVANCED_NLP"] = "LOCAL_RULE_BASED"
+    result_id: str | None = None
+    nlp_provider: str = "LOCAL"
+    nlp_model: str | None = None
+    language: str | None = None
+    field_confidence: dict[str, float | None] = Field(default_factory=dict)
+    confidence_basis: str = "Heuristic extraction completeness, not a calibrated probability or severity score"
+    hazard_intensity_estimate: float | None = Field(default=None, ge=0, le=1)
     incident_type: Incident | None = None
     location: str | None = Field(default=None, max_length=200)
     people_affected: int | None = Field(default=None, ge=0, le=1000000)
@@ -47,7 +57,7 @@ class Extraction(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     gps_verified: bool = False
-    confidence: float = Field(default=0, ge=0, le=1)
+    confidence: float | None = Field(default=0, ge=0, le=1)
     confidence_factors: dict[str, int] = Field(default_factory=dict)
     missing_fields: list[str] = Field(default_factory=list)
     questions: list[str] = Field(default_factory=list)
@@ -227,14 +237,31 @@ def parse_intake(request: ParseRequest) -> Extraction:
 
 
 def report_intake_metadata(payload):
-    """Recompute extraction on the server; retain reviewed fields separately per report."""
+    """Use the server preview (legacy: local parse); retain reviewed fields separately."""
     if payload.get("source") not in {"SMS", "CALL"} or not payload.get("raw_content", "").strip():
         return None
-    parsed = parse_intake(ParseRequest(source=payload["source"], text=payload["raw_content"],
-                         latitude=payload["latitude"], longitude=payload["longitude"], gps_verified=payload.get("gps_verified", False)))
+    speech = {}
+    if payload.get("intake_result_id"):
+        from intake_records import get_preview
+        preview = get_preview(payload["intake_result_id"], "nlp")
+        if preview["text"] != payload["raw_content"] or preview["source"] != payload["source"]:
+            raise ValueError("Transcript changed. Analyze it again before submitting.")
+        parsed = Extraction.model_validate(preview["extraction"])
+        speech = preview["speech"]
+    else:
+        parsed = parse_intake(ParseRequest(source=payload["source"], text=payload["raw_content"],
+                             latitude=payload["latitude"], longitude=payload["longitude"], gps_verified=payload.get("gps_verified", False)))
+        speech = {"speech_provider": "MANUAL_TEXT", "speech_model": None,
+                  "detected_language": None, "original_transcript": payload["raw_content"]}
     unknown = payload.get("intake_unknown_fields", [])
     fields = ["incident_type", "location", "people_affected", "injured", "trapped", "vulnerable_groups", "spreading", "structural_damage", "hazard_intensity"]
     reviewed = {key: None if key in unknown else payload.get(key) for key in fields}
-    return {"extraction": parsed.model_dump(), "reviewed": reviewed, "unknown_fields": unknown,
+    corrections = {key: {"original": getattr(parsed, key), "reviewed": reviewed[key]} for key in fields if reviewed[key] != getattr(parsed, key)}
+    if speech["original_transcript"] != payload["raw_content"]:
+        corrections["transcript"] = {"original": speech["original_transcript"], "reviewed": payload["raw_content"]}
+    return {**speech, "nlp_provider": parsed.nlp_provider, "nlp_model": parsed.nlp_model,
+            "nlp_method": parsed.method, "field_confidence": parsed.field_confidence,
+            "missing_fields": parsed.missing_fields, "citizen_corrections": corrections,
+            "extraction": parsed.model_dump(), "reviewed": reviewed, "unknown_fields": unknown,
             "corrected_fields": [key for key in fields if reviewed[key] != getattr(parsed, key)],
-            "confidence_basis": "Original text extraction completeness; separate from incident evidence and severity"}
+            "confidence_basis": parsed.confidence_basis}

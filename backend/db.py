@@ -789,6 +789,9 @@ def init_db():
         _ensure_column(connection, "reports", "injured", "INTEGER NOT NULL DEFAULT 0")
         _ensure_column(connection, "reports", "trapped", "INTEGER NOT NULL DEFAULT 0")
         _ensure_column(connection, "reports", "intake_json", "TEXT")
+        connection.execute("""CREATE TABLE IF NOT EXISTS intake_previews (
+            id TEXT PRIMARY KEY, kind TEXT NOT NULL, payload_json TEXT NOT NULL, created_at REAL NOT NULL
+        )""")
 
 
 # ============================================================

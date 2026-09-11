@@ -239,6 +239,7 @@ export interface ReassignmentResponse {
 // CREATE REPORT REQUEST
 // ============================================================
 export interface CreateReportRequest {
+    intake_result_id?: string;
     intake_unknown_fields?: IntakeUnknownField[];
     injured?: number;
     trapped?: number;
@@ -307,7 +308,14 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
 export type IntakeUnknownField = 'people_affected' | 'injured' | 'trapped' | 'spreading' | 'structural_damage';
 export interface IntakeExtraction {
     source: 'SMS' | 'CALL';
-    method: 'LOCAL_RULE_BASED';
+    method: 'LOCAL_RULE_BASED' | 'ADVANCED_NLP';
+    result_id?: string;
+    nlp_provider?: string;
+    nlp_model?: string | null;
+    language?: string | null;
+    confidence_basis?: string;
+    field_confidence?: Record<string, number | null>;
+    hazard_intensity_estimate?: number | null;
     incident_type: EmergencyType | null;
     location: string | null;
     people_affected: number | null;
@@ -322,7 +330,7 @@ export interface IntakeExtraction {
     latitude: number | null;
     longitude: number | null;
     gps_verified: boolean;
-    confidence: number;
+    confidence: number | null;
     confidence_factors: Record<string, number>;
     missing_fields: string[];
     questions: string[];
@@ -330,17 +338,42 @@ export interface IntakeExtraction {
     evidence: Record<string, string>;
 }
 export interface IntakeMetadata {
+    speech_provider?: string;
+    speech_model?: string | null;
+    detected_language?: string | null;
+    browser_language_hint?: string | null;
+    original_transcript?: string;
+    nlp_provider?: string;
+    nlp_model?: string | null;
+    nlp_method?: string;
+    field_confidence?: Record<string, number | null>;
+    missing_fields?: string[];
+    citizen_corrections?: Record<string, { original: unknown; reviewed: unknown }>;
     extraction: IntakeExtraction;
     reviewed: Record<string, string | number | boolean | string[] | null>;
     unknown_fields: IntakeUnknownField[];
     corrected_fields: string[];
     confidence_basis: string;
 }
-export function parseIntake(input: { source: 'SMS' | 'CALL'; text: string; latitude?: number; longitude?: number; gps_verified: boolean }, signal: AbortSignal) {
+export interface SpeechMetadataInput {
+    speech_result_id?: string;
+    browser_transcript?: string;
+    browser_language?: string;
+}
+export interface VoiceTranscription {
+    provider: 'SARVAM'; model: string; language_code: string | null;
+    transcript: string; confidence: number | null; result_id: string;
+}
+export function transcribeVoice(audio: Blob, signal: AbortSignal) {
+    return apiFetch<VoiceTranscription>('/voice/transcribe', { method: 'POST',
+        headers: { 'Content-Type': audio.type }, body: audio,
+        signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]) });
+}
+export function parseIntake(input: { source: 'SMS' | 'CALL'; text: string; latitude?: number; longitude?: number; gps_verified: boolean } & SpeechMetadataInput, signal: AbortSignal) {
     // Render cold starts may exceed the normal operational polling timeout.
     return apiFetch<IntakeExtraction>('/intake/parse', { method: 'POST',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
-        signal: AbortSignal.any([signal, AbortSignal.timeout(60000)]) });
+        signal: AbortSignal.any([signal, AbortSignal.timeout(90000)]) });
 }
 // ============================================================
 // HEALTH

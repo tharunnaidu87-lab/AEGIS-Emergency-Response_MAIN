@@ -63,9 +63,11 @@ Use `requirements.txt` if browser verification is unnecessary. Downloads require
 | `VITE_API_BASE_URL` | `/api`, same-origin frontend requests |
 | `VITE_OSRM_URL` | `https://router.project-osrm.org`, or a compatible driving-route service |
 
-Backend variables are **shell environment variables**; FastAPI does not automatically load `backend/.env`. Example files document values. Vite reads `frontend/.env.local`; VITE values are public build-time settings, never credentials.
+Backend startup loads `backend/.env`; shell values take precedence. Optional `SARVAM_API_KEY` and `NVIDIA_API_KEY` enable multilingual voice transcription and advanced NLP. Keys stay backend-only and `.env` must never be committed. Vite reads `frontend/.env.local`; VITE values are public build-time settings, never credentials.
 
 No paid services or API keys are required. OSRM and OSM tiles require connectivity. Routing failure produces a labeled straight line; tile failure leaves operational layers over a dark background.
+
+The optional advanced voice providers require their API keys and connectivity. Without them, CALL supports browser speech/manual text and the existing local English NLP fallback. See [VOICE_HANDOVER.md](VOICE_HANDOVER.md) for the new `/call` flow, model selection, metadata, tests and live-provider limitations.
 
 ## Verification
 

@@ -1,5 +1,7 @@
 # Call, SMS and local NLP upgrade
 
+The September 10 multilingual voice batch extends this implementation. See [VOICE_HANDOVER.md](VOICE_HANDOVER.md) for the current MediaRecorder/Sarvam/NVIDIA flow, explicit CALL analysis, confidence, persisted provider metadata and verification. This document records the original local-only intake baseline.
+
 Updated 9 September 2026. All implementation and verification writes stayed inside AEGIS-MAIN.
 
 ## What changed for citizens

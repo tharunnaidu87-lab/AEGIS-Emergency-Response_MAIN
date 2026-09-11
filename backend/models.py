@@ -45,6 +45,7 @@ class AnalysisRequest(Coordinates):
 
 
 class ReportCreateRequest(AnalysisRequest):
+    intake_result_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
     intake_unknown_fields: list[UnknownField] = Field(default_factory=list, max_length=5)
     source: Literal["APP", "SMS", "CALL"] = "APP"
     raw_content: str = Field(default="", max_length=10000)

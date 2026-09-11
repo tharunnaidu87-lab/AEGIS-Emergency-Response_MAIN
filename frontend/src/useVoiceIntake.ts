@@ -19,7 +19,7 @@ const errors: Record<string, string> = {
   aborted: 'Recording stopped. You can review the transcript or try again.',
 };
 
-export function useVoiceIntake(text: string, onText: (value: string) => void) {
+export function useBrowserVoiceIntake(text: string, onText: (value: string) => void) {
   const [listening, setListening] = useState(false);
   const [error, setError] = useState('');
   const recognition = useRef<Recognition | null>(null);
@@ -38,7 +38,7 @@ export function useVoiceIntake(text: string, onText: (value: string) => void) {
     try {
       current = new Constructor();
       recognition.current = current;
-      current.lang = 'en-IN'; current.continuous = true; current.interimResults = true;
+      current.lang = navigator.language || 'en'; current.continuous = true; current.interimResults = true;
       const prefix = retry ? '' : text.trim();
       if (retry) onText('');
       let heard = false;

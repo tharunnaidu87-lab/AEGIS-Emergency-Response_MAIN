@@ -2,12 +2,17 @@
 import os
 from contextlib import asynccontextmanager
 from typing import Literal
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from provider_config import api_key, SARVAM_MODEL, NVIDIA_MODEL
 import db
 import operations
-from intake_nlp import Extraction, ParseRequest, parse_intake
+from intake_nlp import Extraction, ParseRequest
+from intake_records import save_preview, speech_metadata
+from nlp.router import extract
+from speech.sarvam import SarvamSpeechProvider
+from speech.provider import SpeechUnavailable, Transcription
 from models import AnalysisRequest, Coordinates, ReportCreateRequest
 from engines.capacity_engine import calculate_all_centres
 from engines.relocation_engine import create_relocation_plan
@@ -107,20 +112,46 @@ def resources():
 
 @app.post("/reports")
 def submit_report(request: ReportCreateRequest):
-    report = operations.submit(request.model_dump())
+    report = conflict(lambda: operations.submit(request.model_dump()))
     return {"status": "REPORT_STORED", "fusion_id": report["fusion_id"], "report": report}
 
 
 @app.post("/intake/parse", response_model=Extraction)
-def parse_emergency_intake(request: ParseRequest):
-    return parse_intake(request)
+async def parse_emergency_intake(request: ParseRequest):
+    speech = conflict(lambda: speech_metadata(request))
+    result = await extract(request)
+    result.result_id = save_preview("nlp", {"source": request.source, "text": request.text,
+        "extraction": result.model_dump(), "speech": speech})
+    return result
+
+
+@app.post("/voice/transcribe", response_model=Transcription)
+async def transcribe_voice(request: Request):
+    content_type = request.headers.get("content-type", "").lower()
+    if content_type.split(";", 1)[0] != "audio/webm":
+        raise HTTPException(415, "Record WebM/Opus audio, or use browser speech/manual text.")
+    audio = bytearray()
+    async for chunk in request.stream():
+        if len(audio) + len(chunk) > 5 * 1024 * 1024:
+            raise HTTPException(413, "Recording is too large. Record up to 25 seconds and retry.")
+        audio.extend(chunk)
+    if not audio:
+        raise HTTPException(422, "No audio was recorded. Please retry.")
+    try:
+        result = await SarvamSpeechProvider().transcribe(bytes(audio), content_type)
+    except SpeechUnavailable as error:
+        raise HTTPException(503, str(error)) from None
+    result.result_id = save_preview("speech", result.model_dump())
+    return result
 
 
 @app.get("/intake/capabilities")
 def intake_capabilities():
-    return {"parser": "LOCAL_RULE_BASED", "language": "en", "requires_api_key": False,
+    return {"parser": "ADVANCED_NLP" if api_key("NVIDIA_API_KEY") else "LOCAL_RULE_BASED",
+            "nlp_model": NVIDIA_MODEL, "language": "auto", "requires_api_key": True,
             "telecom": "PROVIDER_READY_NOT_CONFIGURED", "telephone_number": None,
-            "speech": "BROWSER_CAPABILITY_DEPENDENT"}
+            "speech": "SARVAM" if api_key("SARVAM_API_KEY") else "BROWSER_CAPABILITY_DEPENDENT",
+            "speech_model": SARVAM_MODEL}
 
 
 @app.get("/reports")

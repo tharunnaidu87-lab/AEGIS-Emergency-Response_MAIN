@@ -88,8 +88,8 @@ def submit(payload):
                 connection.execute("UPDATE reports SET intake_json=? WHERE id=?", (json.dumps(intake), report["id"]))
                 db._insert_audit_event(connection, report_id=report["id"], fusion_id=report["fusion_id"],
                     event_type="INTAKE_REVIEWED", actor="CITIZEN",
-                    message=f"{payload['source']} intake reviewed and submitted; local NLP did not dispatch resources.",
-                    metadata={"method": "LOCAL_RULE_BASED", "corrected_fields": intake["corrected_fields"],
+                    message=f"{payload['source']} intake reviewed and submitted; NLP did not dispatch resources.",
+                    metadata={"method": intake["nlp_method"], "corrected_fields": intake["corrected_fields"],
                               "unknown_fields": intake["unknown_fields"]})
             group, _ = refresh_fusion(connection, report["fusion_id"])
             status = max((r["status"] for r in group), key=REPORT_ORDER.index)
