@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from provider_config import api_key, SARVAM_MODEL, NVIDIA_MODEL
+from command_auth import CommandAuthMiddleware, router as command_auth_router
 import db
 import operations
 from intake_nlp import Extraction, ParseRequest
@@ -28,9 +29,11 @@ async def lifespan(app):
 
 
 app = FastAPI(title="AEGIS Backend", version="5.0", lifespan=lifespan)
+app.add_middleware(CommandAuthMiddleware)
 app.add_middleware(CORSMiddleware,
     allow_origins=[s.strip() for s in os.getenv("AEGIS_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if s.strip()],
-    allow_credentials=False, allow_methods=["GET", "POST", "PATCH"], allow_headers=["Content-Type"])
+    allow_credentials=False, allow_methods=["GET", "POST", "PATCH"], allow_headers=["Content-Type", "Authorization"])
+app.include_router(command_auth_router)
 
 
 def found(value, label="Report"):
