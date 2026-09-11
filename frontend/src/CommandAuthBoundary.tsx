@@ -1,4 +1,5 @@
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { clearCommandToken, getCommandToken, setCommandToken } from "./commandAuthFetch";
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
@@ -21,14 +22,18 @@ function installHistoryEvents() {
   if (historyAny.__aegisPatched) return;
   historyAny.__aegisPatched = true;
 
-  for (const method of ["pushState", "replaceState"] as const) {
-    const original = history[method].bind(history);
-    history[method] = ((...args: Parameters<History[typeof method]>) => {
-      const result = original(...args);
-      window.dispatchEvent(new Event("aegis-locationchange"));
-      return result;
-    }) as History[typeof method];
-  }
+  const originalPushState = history.pushState.bind(history);
+  const originalReplaceState = history.replaceState.bind(history);
+
+  history.pushState = (data: unknown, unused: string, url?: string | URL | null) => {
+    originalPushState(data, unused, url);
+    window.dispatchEvent(new Event("aegis-locationchange"));
+  };
+
+  history.replaceState = (data: unknown, unused: string, url?: string | URL | null) => {
+    originalReplaceState(data, unused, url);
+    window.dispatchEvent(new Event("aegis-locationchange"));
+  };
 }
 
 export default function CommandAuthBoundary({ children }: { children: ReactNode }) {
@@ -89,7 +94,7 @@ export default function CommandAuthBoundary({ children }: { children: ReactNode 
     return () => controller.abort();
   }, [needsCommandAuth]);
 
-  async function login(event: FormEvent) {
+  async function login(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
     setSubmitting(true);
