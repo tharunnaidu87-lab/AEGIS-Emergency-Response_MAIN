@@ -76,28 +76,30 @@ def upgrade_legacy_analyses():
 
 
 def submit(payload):
-    # Preserve the existing report schema and audit/fusion repository.
-    intake = report_intake_metadata(payload)
-    with db.WRITE_LOCK:
-        report = db.create_report(payload, {"status": "AEGIS_ANALYSIS_COMPLETE", "result": calculate(payload)})
-        with db.get_connection() as connection:
-            connection.execute("BEGIN IMMEDIATE")
-            connection.execute("UPDATE reports SET injured=?, trapped=? WHERE id=?",
-                               (payload.get("injured", 0), payload.get("trapped", 0), report["id"]))
-            if intake:
-                connection.execute("UPDATE reports SET intake_json=? WHERE id=?", (json.dumps(intake), report["id"]))
-                db._insert_audit_event(connection, report_id=report["id"], fusion_id=report["fusion_id"],
-                    event_type="INTAKE_REVIEWED", actor="CITIZEN",
-                    message=f"{payload['source']} intake reviewed and submitted; NLP did not dispatch resources.",
-                    metadata={"method": intake["nlp_method"], "corrected_fields": intake["corrected_fields"],
-                              "unknown_fields": intake["unknown_fields"]})
-            group, _ = refresh_fusion(connection, report["fusion_id"])
-            status = max((r["status"] for r in group), key=REPORT_ORDER.index)
-            connection.execute("UPDATE reports SET status=? WHERE fusion_id=?", (status, report["fusion_id"]))
-    return db.get_report(report["id"])
+    from intake_delivery import existing_report
+    with db.WRITE_LOCK, db.get_connection() as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        previous = existing_report(payload)
+        if previous:
+            return previous
+        intake = report_intake_metadata(payload)
+        report = db.create_report(payload, {"status": "AEGIS_ANALYSIS_COMPLETE", "result": calculate(payload)}, transaction=connection)
+        connection.execute("UPDATE reports SET injured=?, trapped=? WHERE id=?",
+                           (payload.get("injured", 0), payload.get("trapped", 0), report["id"]))
+        if intake:
+            connection.execute("UPDATE reports SET intake_json=? WHERE id=?", (json.dumps(intake), report["id"]))
+            db._insert_audit_event(connection, report_id=report["id"], fusion_id=report["fusion_id"],
+                event_type="INTAKE_REVIEWED", actor="CITIZEN",
+                message="Citizen reviewed intake; no resources dispatched.",
+                metadata={"method": intake["nlp_method"], "corrected_fields": intake["corrected_fields"],
+                          "unknown_fields": intake["unknown_fields"]})
+        group, _ = refresh_fusion(connection, report["fusion_id"])
+        status = max((r["status"] for r in group), key=REPORT_ORDER.index)
+        connection.execute("UPDATE reports SET status=? WHERE fusion_id=?", (status, report["fusion_id"]))
+        return db.decode_report(connection.execute("SELECT * FROM reports WHERE id=?", (report["id"],)).fetchone())
 
 
-def dispatch(report_id):
+def dispatch(report_id, additional_type=None, actor="COMMAND"):
     with db.WRITE_LOCK, db.get_connection() as connection:
         connection.execute("BEGIN IMMEDIATE")
         row = connection.execute("SELECT * FROM reports WHERE id=?", (report_id,)).fetchone()
@@ -112,10 +114,16 @@ def dispatch(report_id):
             "SELECT a.* FROM assignments a JOIN reports r ON r.id=a.report_id WHERE r.fusion_id=?",
             (report["fusion_id"],)).fetchall()
         # Idempotent dispatch, including another report describing the same incident.
-        if existing:
+        if existing and (not additional_type or any(a["resource_type"] == additional_type and not a["replaced_by_assignment_id"] for a in existing)):
             return {"report": db.decode_report(connection.execute("SELECT * FROM reports WHERE id=?", (report_id,)).fetchone()),
                     "assignments": [dict(a) for a in existing], "already_dispatched": True}
         resources = envelope["result"]["resource_plan"]["selected_resources"]
+        if additional_type:
+            from engines.resource_engine import allocate_resources
+            busy = {r["resource_id"] for r in connection.execute("SELECT resource_id FROM assignments WHERE status!='RESOLVED'")}
+            kind = {"POLICE": "SOS", "AMBULANCE": "Accident", "FIRE_ENGINE": "Fire", "RESCUE_TEAM": "Landslide"}[additional_type]
+            plan = allocate_resources(kind, 0, report["latitude"], report["longitude"], unavailable_ids=busy)
+            resources = [r for r in plan["selected_resources"] if r["type"] == additional_type][:1]
         if not resources:
             raise ValueError("No compatible available units. Review shortages before dispatch.")
         timestamp = db.now_iso()
@@ -130,10 +138,11 @@ def dispatch(report_id):
                  resource["latitude"],resource["longitude"],resource["distance_km"],
                  resource["eta_minutes"],timestamp,timestamp))
             db._insert_audit_event(connection, report_id=canonical, assignment_id=assignment_id,
-                fusion_id=report["fusion_id"], event_type="ASSIGNMENT_CREATED", actor="COMMAND",
+                fusion_id=report["fusion_id"], event_type="ASSIGNMENT_CREATED", actor=actor,
                 message=f"{resource['id']} assigned. {resource['selection_reason']}",
                 metadata={"eta_basis": "DISTANCE_ESTIMATE", "resource_id": resource["id"]})
-        _set_group_status(connection, report["fusion_id"], "DISPATCHED", "COMMAND")
+        if REPORT_ORDER.index(report["status"]) < REPORT_ORDER.index("DISPATCHED"):
+            _set_group_status(connection, report["fusion_id"], "DISPATCHED", actor)
         rows = connection.execute("SELECT * FROM assignments WHERE report_id=?", (canonical,)).fetchall()
         report = db.decode_report(connection.execute("SELECT * FROM reports WHERE id=?", (report_id,)).fetchone())
         return {"report": report, "assignments": [dict(a) for a in rows], "already_dispatched": False}

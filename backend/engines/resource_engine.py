@@ -60,6 +60,9 @@ def calculate_resource_requirements(
 
     requirements = {}
 
+    if incident_type == "sos":
+        return {"POLICE": 1}
+
     # Accident
     if incident_type in ["accident", "road accident"]:
 
@@ -166,7 +169,7 @@ def allocate_resources(incident_type, people_affected, incident_latitude, incide
     for kind, count in requirements.items():
         available = sorted([r for r in candidates if r["type"] == kind
                             and r["status"] == "AVAILABLE" and r["distance_km"] <= 75],
-                           key=lambda r: (r["selection_score"], r["id"]))
+                           key=lambda r: (r["distance_km"] if incident_type.lower() == "sos" else r["selection_score"], r["id"]))
         chosen = available[:count]
         selected.extend(chosen)
         if len(chosen) < count:

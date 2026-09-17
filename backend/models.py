@@ -45,6 +45,15 @@ class AnalysisRequest(Coordinates):
 
 
 class ReportCreateRequest(AnalysisRequest):
+    client_request_id: str | None = Field(default=None, pattern=r"^[a-zA-Z0-9_-]{16,80}$")
+    photos: list[str] = Field(default_factory=list, max_length=2)
+
+    @model_validator(mode="after")
+    def media_limits(self):
+        if any(len(p) > 950000 for p in self.photos):
+            raise ValueError("Compress photos before submitting")
+        return self
+
     intake_result_id: str | None = Field(default=None, pattern=r"^[a-f0-9]{32}$")
     intake_unknown_fields: list[UnknownField] = Field(default_factory=list, max_length=5)
     source: Literal["APP", "SMS", "CALL"] = "APP"

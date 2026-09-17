@@ -1,3 +1,9 @@
+import ReportPhotos from "./ReportPhotos";
+import PhotoPicker from "./PhotoPicker";
+import { SosButton, QueuedReceipt } from "./DeliveryUI";
+import { queueReport } from "./outbox";
+import DistressPanel from "./DistressPanel";
+import IncidentLifecycle from "./IncidentLifecycle";
 import { useRoadScenario } from "./useRoadScenario";
 import { useEffect, useMemo, useState, useCallback, lazy, Suspense, } from "react";
 import { BrowserRouter, Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams, } from "react-router-dom";
@@ -10,7 +16,7 @@ import IntakeMethodSelector from "./IntakeMethodSelector";
 import IntakeReportDetails from "./IntakeReportDetails";
 import BackendIntelligence from "./BackendIntelligence";
 const OperationalMap = lazy(() => import("./OperationalMap"));
-import { dispatchReport, getReport, listAssignments, listReports, runAegisAnalysis, submitReport, updateAssignmentStatus, updateReportStatus, type AegisResponse, type Assignment, type AssignmentStatus, type EmergencyType, type ReportStatus, type SharedReport, } from "./api";
+import { dispatchReport, getReport, listAssignments, listReports, runAegisAnalysis, updateAssignmentStatus, type AegisResponse, type Assignment, type AssignmentStatus, type EmergencyType, type ReportStatus, type SharedReport, } from "./api";
 import UnifiedCommandModules, { type UnifiedCommandView, } from "./UnifiedCommandModules";
 // ============================================================
 // CONSTANTS
@@ -23,7 +29,6 @@ const INCIDENT_TYPES: EmergencyType[] = [
 ];
 const REPORT_STAGES: ReportStatus[] = [
     "REPORTED",
-    "ACKNOWLEDGED",
     "DISPATCHED",
     "EN_ROUTE",
     "ON_SCENE",
@@ -74,6 +79,7 @@ function App() {
     return (<BrowserRouter>
 
       <Routes>
+        <Route path="/queued/:localId" element={<QueuedReceipt />} />
         <Route path="/sms" element={<IntakeChannels source="SMS" />} />
         <Route path="/call" element={<IntakeChannels source="CALL" />} />
         <Route path="*" element={<main className="center-state"><h1>Page not found</h1><Link to="/report">OPEN AEGIS</Link></main>} />
@@ -229,6 +235,14 @@ function ResponderHeader({ unitId, }: {
 // ============================================================
 function formatTime(value: string) {
     return new Date(value).toLocaleString();
+}
+function publicReportStatus(status: ReportStatus) {
+    if (status === "REPORTED" || status === "ACKNOWLEDGED") return "AWAITING AUTHORITY APPROVAL";
+    return status.replaceAll("_", " ");
+}
+function publicReportStageIndex(status: ReportStatus) {
+    if (status === "ACKNOWLEDGED") return 0;
+    return Math.max(0, REPORT_STAGES.indexOf(status));
 }
 function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
     const radius = 6371;
@@ -478,7 +492,8 @@ function ReportPage() {
     const [injured, setInjured] = useState(0);
     const [trapped, setTrapped] = useState(0);
     const [phone, setPhone] = useState("");
-    const [people, setPeople] = useState(10);
+    const [people, setPeople] = useState(0);
+    const [photos, setPhotos] = useState<string[]>([]);
     const [location, setLocation] = useState("");
     const [latitude, setLatitude] = useState("");
     const [longitude, setLongitude] = useState("");
@@ -545,7 +560,8 @@ function ReportPage() {
         }
         setLoading(true);
         try {
-            const response = await submitReport({
+            const localId = await queueReport({
+                photos,
                 source: "APP",
                 injured, trapped,
                 raw_content: description,
@@ -562,7 +578,7 @@ function ReportPage() {
                 spreading,
                 structural_damage: structuralDamage,
             });
-            navigate(`/track/${response.report.id}`);
+            navigate(`/queued/${localId}`);
         }
         catch (submitError) {
             console.error(submitError);
@@ -580,6 +596,7 @@ function ReportPage() {
       <main className="citizen-page">
 
         <IntakeMethodSelector active="APP" />
+        <SosButton />
 
         <section className="citizen-intro">
 
@@ -603,6 +620,7 @@ function ReportPage() {
         </section>
 
 
+        <PhotoPicker photos={photos} onChange={setPhotos} />
         <section className="report-board">
           <button className="demo-fill" type="button" onClick={() => { setIncidentType("Flood"); setLocation("Riverbank Village, Chennai"); setLatitude("13.1300"); setLongitude("80.2200"); setPeople(18); setInjured(3); setTrapped(4); setHazardIntensity(0.8); setDescription("Flood water is entering riverbank homes. People are trapped and water is spreading toward nearby streets."); setSpreading(true); setVulnerableGroups(["Children", "Elderly"]); setGpsVerified(false); }}>FILL FLOOD DEMO SCENARIO</button>
 
@@ -891,40 +909,9 @@ function ReportPage() {
 // ============================================================
 function TrackPage() {
     const { reportId } = useParams();
-    const [report, setReport] = useState<SharedReport | null>(null);
-    const [error, setError] = useState("");
-    useEffect(() => {
-        if (!reportId) {
-            return;
-        }
-        let active = true;
-        async function refresh() {
-            try {
-                const response = await getReport(reportId!);
-                if (active) {
-                    setReport(response);
-                    setError("");
-                }
-            }
-            catch {
-                if (active) {
-                    setError("Report could not be found.");
-                }
-            }
-        }
-        void refresh();
-        const timer = window.setInterval(() => {
-            void refresh();
-        }, 2000);
-        return () => {
-            active =
-                false;
-            window.clearInterval(timer);
-        };
-    }, [
-        reportId
-    ]);
-    if (error) {
+    const read = useCallback(async () => reportId ? getReport(reportId) : null, [reportId]);
+    const { data: report, error } = usePolling(read, null as SharedReport | null, 3000);
+    if (error && !report) {
         return (<div className="aegis-shell">
 
         <PublicHeader />
@@ -956,7 +943,7 @@ function TrackPage() {
 
       </div>);
     }
-    const currentIndex = REPORT_STAGES.indexOf(report.status);
+    const currentIndex = publicReportStageIndex(report.status);
     return (<div className="aegis-shell">
 
       <PublicHeader />
@@ -977,7 +964,7 @@ function TrackPage() {
             </span>
 
             <span>
-              {report.status}
+              {publicReportStatus(report.status)}
             </span>
 
           </div>
@@ -1082,14 +1069,14 @@ function TrackPage() {
                 currentIndex
                 ? "progress-step active"
                 : "progress-step"}>
-                  {stage.replace("_", " ")}
+                  {stage === "REPORTED" ? "REPORT RECEIVED" : stage.replaceAll("_", " ")}
                 </span>))}
 
           </div>
 
 
           <div className="receipt-actions">
-            <Link className="citizen-primary-action" to={"/command?report=" + encodeURIComponent(report.id)}>TRACK MY REPORT</Link>
+            <div className="citizen-primary-action track-live-status" role="status">LIVE STATUS UPDATES ABOVE</div>
 
 
             <Link className="citizen-primary-action" to="/report">
@@ -1374,10 +1361,7 @@ function CommandPage() {
         catch (error) { setActionError(error instanceof Error ? error.message : "Command action failed."); }
         finally { setActionBusy(false); }
     }
-    async function acknowledge() {
-        if (selected) await commandAction(() => updateReportStatus(selected.id, "ACKNOWLEDGED"));
-    }
-    async function dispatch() {
+async function dispatch() {
         if (selected) await commandAction(() => dispatchReport(selected.id));
     }
     async function startMovement() {
@@ -1408,7 +1392,7 @@ function CommandPage() {
     if (!selected) {
         return (<div className="aegis-shell">
 
-        <CommandHeader />
+        <DistressPanel /><CommandHeader />
 
 
         <main className="command-empty">
@@ -1558,7 +1542,7 @@ function CommandPage() {
         : null;
     return (<div className="aegis-shell">
 
-      <CommandHeader />
+      <DistressPanel /><CommandHeader />
 
 
       <main className="command-layout">
@@ -1679,7 +1663,7 @@ function CommandPage() {
 
                 {" · "}
 
-                {selected.status}
+                {publicReportStatus(selected.status)}
 
               </p>
 
@@ -1690,18 +1674,25 @@ function CommandPage() {
 
               <i />
 
-              {selected.status}
+              {publicReportStatus(selected.status)}
 
             </div>
 
           </div>
 
 
+          <IncidentLifecycle
+            report={selected}
+            assignments={selectedAssignments}
+            audience="COMMAND"
+          />
+
+
                     <details className="pipeline-receipt" open={revealStage < 7}><summary><strong>BACKEND ANALYSIS RECEIVED</strong><span>{revealStage < 7 ? "Presenting calculation stages..." : "Calculation results ready"}</span></summary>
             <div>{(selected.analysis.result.pipeline || []).slice(0, Math.ceil(revealStage * 10 / 7)).map(stage => <span key={stage.stage}>{stage.stage} | {stage.duration_ms.toFixed(1)} ms</span>)}</div>
           </details>
           {revealStage >= 2 && <BackendIntelligence result={selected.analysis.result} condensed />}
-          {original && <IntakeReportDetails report={original} />}
+          {original && <><ReportPhotos reportId={original.id} /><IntakeReportDetails report={original} /></>}
 
 <div className="command-module-tabs">
 
@@ -1795,7 +1786,7 @@ function CommandPage() {
                   </small>
 
                   <strong>
-                    {selected.status}
+                    {publicReportStatus(selected.status)}
                   </strong>
 
                 </div>
@@ -1977,30 +1968,44 @@ function CommandPage() {
                         </div>))}
 
 
-                  <div className="status-buttons">
+                 <div className="status-buttons">
 
-                    <button type="button" disabled={actionBusy || selected.status !==
-                "REPORTED"} onClick={() => {
-                void acknowledge();
-            }}>
-                      ACKNOWLEDGE
-                    </button>
+  <button
+  type="button"
+  className="dispatch-button"
+  disabled={
+    actionBusy ||
+    selected.status === "RESOLVED" ||
+    selectedAssignments.length > 0
+  }
+  onClick={() => {
+    void dispatch();
+  }}
+>
+  {selectedAssignments.length > 0
+    ? "RESPONSE DISPATCHED"
+    : actionBusy
+      ? "APPROVING RESPONSE..."
+      : "APPROVE RESPONSE & DISPATCH"}
+</button>
 
-
-                    <button type="button" disabled={actionBusy || selected.status === "RESOLVED" || selected.status ===
-                "REPORTED"
-                ||
-                    selectedAssignments.length >
-                        0} onClick={() => {
-                void dispatch();
-            }}>
-                      DISPATCH RECOMMENDED UNITS
-                    </button>
-                  <button type="button" className="dispatch-button" disabled={actionBusy || !selectedAssignments.some(a => ["ASSIGNED", "ACCEPTED"].includes(a.status)) || !Object.keys(commandRoutes).length} onClick={() => { void startMovement(); }}>START DEMO MOVEMENT</button>
-                  <Link className="responder-link" to={"/responder?unit=" + (selectedAssignments[0]?.resource_id || "AMB-02")}>OPEN RESPONDER VIEW</Link>
-
-
-                  </div>
+  <button
+    type="button"
+    className="dispatch-button"
+    disabled={
+      actionBusy ||
+      !selectedAssignments.some(a =>
+        ["ASSIGNED", "ACCEPTED"].includes(a.status)
+      ) ||
+      !Object.keys(commandRoutes).length
+    }
+    onClick={() => {
+      void startMovement();
+    }}
+  >
+    START DEMO MOVEMENT
+  </button>
+  </div>
 
                 </article>
 
@@ -2076,7 +2081,7 @@ function CommandPage() {
                             </div>);
                 })
                 : (<div className="empty-module">
-                        Awaiting dispatch.
+                        Awaiting authority approval and dispatch.
                       </div>)}
 
                 </article>
@@ -2827,12 +2832,12 @@ function responderStatusAllowed(current: AssignmentStatus, next: AssignmentStatu
 // ============================================================
 function ResponderPage() {
     const parameters = new URLSearchParams(window.location.search);
-    const unitId = parameters.get("unit")
+    const unitId = sessionStorage.getItem("aegis_unit") || parameters.get("unit")
         ||
             "AMB-02";
     const read = useCallback(async () => {
         const assignments = await listAssignments(unitId);
-        const reports = await listReports();
+        const reports: SharedReport[] = [];
         for (const assignment of assignments.filter(a => a.status !== "RESOLVED")) {
             if (!reports.some(r => r.id === assignment.report_id)) reports.push(await getReport(assignment.report_id));
         }
@@ -3027,6 +3032,14 @@ function ResponderPage() {
             </h1>
 
           </div>
+
+
+          <IncidentLifecycle
+            report={currentReport}
+            assignments={currentAssignments}
+            audience="RESPONDER"
+            compact
+          />
 
 
           <div className="assignment-card">
