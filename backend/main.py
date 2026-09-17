@@ -1,14 +1,21 @@
 """Compatible FastAPI endpoints for the shared AEGIS prototype."""
 import os
+import asyncio
+from contextlib import suppress
+from distress import router as distress_router, process_pending
 from contextlib import asynccontextmanager
 from typing import Literal
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from provider_config import api_key, SARVAM_MODEL, NVIDIA_MODEL
+from request_guard import RequestGuard
 from command_auth import CommandAuthMiddleware, router as command_auth_router
 import db
 import operations
+import intake_delivery
+import provider_health
+from fastapi.responses import Response
 from intake_nlp import Extraction, ParseRequest
 from intake_records import save_preview, speech_metadata
 from nlp.router import extract
@@ -24,16 +31,25 @@ from engines.resource_engine import load_resources
 @asynccontextmanager
 async def lifespan(app):
     db.init_db()
+    intake_delivery.init_schema()
     operations.upgrade_legacy_analyses()
-    yield
+    worker = asyncio.create_task(process_pending())
+    try:
+        yield
+    finally:
+        worker.cancel()
+        with suppress(asyncio.CancelledError):
+            await worker
 
 
 app = FastAPI(title="AEGIS Backend", version="5.0", lifespan=lifespan)
 app.add_middleware(CommandAuthMiddleware)
+app.add_middleware(RequestGuard)
 app.add_middleware(CORSMiddleware,
     allow_origins=[s.strip() for s in os.getenv("AEGIS_CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173").split(",") if s.strip()],
-    allow_credentials=False, allow_methods=["GET", "POST", "PATCH"], allow_headers=["Content-Type", "Authorization"])
+    allow_credentials=False, allow_methods=["GET", "POST", "PATCH"], allow_headers=["Content-Type", "Authorization", "X-Report-Token"])
 app.include_router(command_auth_router)
+app.include_router(distress_router)
 
 
 def found(value, label="Report"):
@@ -116,7 +132,7 @@ def resources():
 @app.post("/reports")
 def submit_report(request: ReportCreateRequest):
     report = conflict(lambda: operations.submit(request.model_dump()))
-    return {"status": "REPORT_STORED", "fusion_id": report["fusion_id"], "report": report}
+    return intake_delivery.receipt(report)
 
 
 @app.post("/intake/parse", response_model=Extraction)
@@ -150,7 +166,7 @@ async def transcribe_voice(request: Request):
 
 @app.get("/intake/capabilities")
 def intake_capabilities():
-    return {"parser": "ADVANCED_NLP" if api_key("NVIDIA_API_KEY") else "LOCAL_RULE_BASED",
+    return {"provider_health": provider_health.snapshot(), "parser": "ADVANCED_NLP" if api_key("NVIDIA_API_KEY") else "LOCAL_RULE_BASED",
             "nlp_model": NVIDIA_MODEL, "language": "auto", "requires_api_key": True,
             "telecom": "PROVIDER_READY_NOT_CONFIGURED", "telephone_number": None,
             "speech": "SARVAM" if api_key("SARVAM_API_KEY") else "BROWSER_CAPABILITY_DEPENDENT",
@@ -165,7 +181,9 @@ def reports(limit: int = Query(100, ge=1, le=500)):
 
 @app.get("/reports/{report_id}")
 def report_by_id(report_id: str):
-    return {"status": "REPORT_FOUND", "report": found(db.get_report(report_id))}
+    report = found(db.get_report(report_id))
+    report["photo_ids"] = intake_delivery.media_ids(report_id)
+    return {"status": "REPORT_FOUND", "report": report}
 
 
 @app.get("/fusion/{fusion_id}/reports")
@@ -239,3 +257,12 @@ def reset_demo_reports():
     if os.getenv("AEGIS_ENABLE_RESET", "false").lower() != "true":
         raise HTTPException(403, "Demo reset is disabled. Use a separate demo database.")
     return {"status": "DEMO_REPORTS_CLEARED", "deleted": db.clear_reports()}
+
+
+@app.get("/media/{media_id}")
+def read_media(media_id: str, request: Request):
+    with db.get_connection() as conn:
+        row = conn.execute("SELECT * FROM report_media WHERE id=?", (media_id,)).fetchone()
+    found(row, "Photo")
+    intake_delivery.authorize_report(request, row["report_id"])
+    return Response(row["content"], media_type=row["content_type"], headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})

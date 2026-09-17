@@ -1,4 +1,5 @@
 import os
+from contextlib import nullcontext
 import json
 import math
 import sqlite3
@@ -812,6 +813,8 @@ def decode_report(
     report = dict(
         row
     )
+    for private in ("tracking_token", "request_hash", "client_request_id"):
+        report.pop(private, None)
     report["intake"] = json.loads(report.pop("intake_json", None) or "null")
 
 
@@ -1241,30 +1244,13 @@ def _find_fusion_candidate(
         )
 
 
-        qualifies = (
-            distance <=
-            3.0
-
-            or
-
-            (
-                distance <=
-                5.0
-
-                and
-
-                location_score >=
-                0.55
-            )
-        )
-
-
-        if (
-            not qualifies
-        ):
-
+        # Proximity alone must not merge separate accidents or fires. Require matching
+        # location context within a short, hazard-specific time/distance window.
+        broad_hazard = str(payload['incident_type']).lower() in {'flood', 'landslide'}
+        max_distance = 1.5 if broad_hazard else 0.35
+        max_age = 45 if broad_hazard else 20
+        if distance > max_distance or age_minutes > max_age or location_score < 0.55:
             continue
-
 
         score = 0.0
 
@@ -1399,7 +1385,8 @@ def _find_fusion_candidate(
 
 def create_report(
     payload,
-    analysis
+    analysis,
+    transaction=None
 ):
 
     report_id = (
@@ -1414,7 +1401,7 @@ def create_report(
 
     with WRITE_LOCK:
 
-        with get_connection() as connection:
+        with (nullcontext(transaction) if transaction is not None else get_connection()) as connection:
 
             fusion_match = (
                 _find_fusion_candidate(
@@ -1424,6 +1411,9 @@ def create_report(
                 )
             )
 
+
+            if payload.get("incident_type") == "SOS":
+                fusion_match = None  # Separate distress signals must not coalesce just because they are nearby.
 
             fusion_id = (
                 fusion_match[
@@ -1581,6 +1571,9 @@ def create_report(
             )
 
 
+            from intake_delivery import store_receipt
+            store_receipt(connection, report_id, payload)
+
             _insert_audit_event(
                 connection,
 
@@ -1688,9 +1681,9 @@ def create_report(
                 )
 
 
-    return get_report(
-        report_id
-    )
+    if transaction is not None:
+        return decode_report(transaction.execute("SELECT * FROM reports WHERE id=?", (report_id,)).fetchone())
+    return get_report(report_id)
 
 
 # ============================================================
@@ -2814,7 +2807,8 @@ def clear_reports():
             )
 
 
-            # Assignments are deleted automatically
+            connection.execute("DELETE FROM distress")
+            # Assignments and media are deleted automatically
             # by ON DELETE CASCADE.
 
             cursor = connection.execute(

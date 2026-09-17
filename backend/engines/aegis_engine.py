@@ -36,6 +36,10 @@ def run_aegis_analysis(incident_type, location, latitude, longitude, people_affe
         vulnerable_groups, spreading, structural_damage))
     priority = {"score": min(100, round(severity["risk_score"] * .85
                 + min(10, people_affected / 10) + min(5, trapped))), "method": "SEVERITY_AND_LIFE_SAFETY"}
+    if incident_type == "SOS":
+        severity.update(risk_score=80, severity="HIGH", factors={"precautionary_distress_priority": 80}, risk_level="HIGH",
+                        explanation="Unverified distress signal: high response priority; hazard magnitude unknown.")
+        priority = {"score": 95, "method": "SOS_PRECAUTIONARY_PRIORITY_NOT_HAZARD_ESTIMATE"}
     stage("INCIDENT PRIORITIZED", lambda: priority)
     risk = stage("HABITATION RISK", lambda: analyse_habitations(incident_type, latitude, longitude, hazard_intensity))
     unavailable = set(unavailable_ids or []) | set(options.get("unavailable_resource_ids", []))

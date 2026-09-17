@@ -1,3 +1,4 @@
+import re
 from intake_nlp import Extraction, parse_intake
 from nlp.nvidia import NvidiaNLPProvider
 from nlp.provider import NLPUnavailable
@@ -22,9 +23,19 @@ async def extract(request, provider=None):
             warnings = list(facts.warnings)
             for key in FACTS:
                 evidence = facts.field_evidence.get(key)
+                if evidence:
+                    match = re.search(re.escape(evidence), request.text, re.IGNORECASE)
+                    if match:
+                        evidence = match.group(0)
+                        facts.field_evidence[key] = evidence
                 if values[key] is not None and values[key] != [] and (not evidence or evidence not in request.text):
                     values[key] = [] if key == "vulnerable_groups" else None
                     warnings.append(key.replace("_", " ") + " lacked supporting text; left unknown.")
+            if values["incident_type"] is None:
+                basic = parse_intake(request)
+                if basic.incident_type is not None:
+                    values["incident_type"] = basic.incident_type
+                    warnings.append("Basic rules identified the incident type. Please verify it.")
             if values["people_affected"] is not None and max(values["injured"] or 0, values["trapped"] or 0) > values["people_affected"]:
                 values["people_affected"] = None
                 warnings.append("Conflicting counts: confirm the affected total.")
@@ -50,5 +61,5 @@ async def extract(request, provider=None):
     result = parse_intake(request)
     result.field_confidence = {key: None for key in FACTS}
     result.questions = list(dict.fromkeys([*result.questions, *[q for k, q in QUESTIONS.items() if getattr(result, k) is None]]))
-    result.warnings.append("Advanced NLP unavailable. Using local English rules; review multilingual text carefully.")
+    result.warnings.append("Using basic emergency analysis. Check the details, especially multilingual text, before submitting.")
     return result

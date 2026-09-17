@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { parseIntake, submitReport, type IntakeExtraction, type IntakeUnknownField, type SpeechMetadataInput } from './api';
+import { queueReport, enqueue, encodeBlob } from './outbox';
+import { Link, useNavigate } from 'react-router-dom';
+import { parseIntake, type IntakeExtraction, type IntakeUnknownField, type SpeechMetadataInput } from './api';
 import IntakeMethodSelector from './IntakeMethodSelector';
 import { useRecordedVoice } from './useRecordedVoice';
 import { useIntakeLocation } from './useIntakeLocation';
@@ -15,6 +16,7 @@ export default function IntakeChannels({ source }: { source: Channel }) {
 }
 
 function ChannelPage({ source }: { source: Channel }) {
+  const navigate = useNavigate();
   const [text, setText] = useState('');
   const [parsed, setParsed] = useState<IntakeExtraction | null>(null);
   const [draft, setDraft] = useState<IntakeExtraction | null>(null);
@@ -26,7 +28,7 @@ function ChannelPage({ source }: { source: Channel }) {
   const [phone, setPhone] = useState('');
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
-  const [receipt, setReceipt] = useState('');
+  const [receipt] = useState('');
   const transcript = useRef<HTMLTextAreaElement>(null);
   const parsedText = useRef('');
   const sendingLock = useRef(false);
@@ -99,7 +101,7 @@ function ChannelPage({ source }: { source: Channel }) {
     if (!canSend || !draft || sendingLock.current) return;
     sendingLock.current = true; setSending(true); setSendError('');
     try {
-      const response = await submitReport({
+      const localId = await queueReport({
         source, raw_content: text, phone, incident_type: draft.incident_type!,
         location: draft.location!.trim(), description: text,
         latitude: Number(latitude), longitude: Number(longitude), gps_verified: gpsVerified,
@@ -110,7 +112,7 @@ function ChannelPage({ source }: { source: Channel }) {
         intake_unknown_fields: unknownFields.filter(key => draft[key] === null),
         intake_result_id: parsed?.result_id,
       });
-      if (mounted.current) setReceipt(response.report.id);
+      if (mounted.current) navigate("/queued/" + localId);
     } catch {
       if (mounted.current) setSendError('We could not confirm delivery. Your message is still here. Check your connection and try again; no receipt has been confirmed.');
     } finally {
@@ -119,6 +121,17 @@ function ChannelPage({ source }: { source: Channel }) {
     }
   }
 
+  async function sendDeferred() {
+    if (sendingLock.current) return;
+    sendingLock.current = true; setSending(true); setSendError('');
+    try {
+      const id = await enqueue('/distress', { kind: 'VOICE', text, captured_at: new Date().toISOString(), online: navigator.onLine,
+        ...(valid ? { latitude: Number(latitude), longitude: Number(longitude) } : {}),
+        ...(voice.recordedAudio ? { audio: await encodeBlob(voice.recordedAudio) } : {}) });
+      navigate('/queued/' + id);
+    } catch { setSendError('The recording could not be saved. Keep this page open and retry.'); }
+    finally { sendingLock.current = false; setSending(false); }
+  }
   function countInput(key: 'people_affected' | 'injured' | 'trapped', title: string) {
     return <label>{title}<input aria-label={title} type="number" min="0" max="1000000" step="1"
       placeholder="Unknown" value={draft?.[key] ?? ''} onChange={e => edit(key, e.target.value === '' ? null : Number(e.target.value))} />
@@ -145,7 +158,7 @@ function ChannelPage({ source }: { source: Channel }) {
         <small>SOURCE: {source}</small><h1>Your emergency report is saved.</h1>
         <p>Report ID: <strong>{receipt}</strong></p><p>Command can now review this incident. No resources were dispatched by voice or text extraction.</p>
         <Link className="intake-primary" to={'/track/' + receipt}>TRACK MY REPORT</Link>
-        <Link to={'/command?report=' + encodeURIComponent(receipt)}>OPEN THIS INCIDENT IN COMMAND</Link>
+        <p className="intake-truth">AEGIS Command receives the report automatically. Keep this report ID for public tracking.</p>
       </section> : <>
         <section className="channel-intro">
           <small>{source === 'CALL' ? 'VOICE / CALL' : 'TEXT / SMS'}</small>
@@ -153,7 +166,11 @@ function ChannelPage({ source }: { source: Channel }) {
           <p>{source === 'CALL' ? 'Speak naturally. Review what AEGIS understood before sending.' : 'Describe the emergency in your own words. AEGIS will prepare the details for you.'}</p>
           <p className="intake-truth">Web reporting prototype. {source === 'CALL' ? 'Telephone calls' : 'SMS gateway'}: not connected to a telecom provider.</p>
         </section>
-        <div className="channel-grid">
+        <section className="deferred-voice">
+          {(voice.recordedAudio || text.trim()) && <><p>Need to send before interpretation finishes? Save the original message for Command review. No normal incident dispatch is automatic.</p><button disabled={sending || voice.listening || voice.processing} onClick={() => void sendDeferred()}>SEND ORIGINAL FOR REVIEW</button></>}
+          {voice.recordedAudio && <p>Recording retained in this browser; it is sent only when you submit it.</p>}
+          {sendError && <p role="alert">{sendError}</p>}
+        </section><div className="channel-grid">
           <section className="intake-compose">
             <h2><span>01</span> {source === 'CALL' ? 'Tell us what happened' : 'Write your message'}</h2>
             {source === 'CALL' && <div className="voice-controls">
@@ -213,7 +230,7 @@ function ChannelPage({ source }: { source: Channel }) {
                 <div><dt>Structural damage</dt><dd>{label(draft.structural_damage)}</dd></div>
               </dl>
               <div className="intake-confidence"><strong>{parsed?.confidence == null ? 'Unrated' : Math.round(parsed.confidence * 100) + '%'}</strong><span>Extraction confidence<br /><small>{parsed?.confidence_basis || 'Heuristic local rule score; not a calibrated probability.'}</small></span></div>
-              <p className="intake-truth">{parsed?.method} {parsed?.nlp_model && `| ${parsed.nlp_model}`}. Check names and numbers. Dispatch remains a Command decision.</p>
+              <p className="intake-truth">{parsed?.method === 'ADVANCED_NLP' ? 'Emergency details interpreted.' : 'Using basic emergency analysis.'} Check names and numbers. Dispatch remains a Command decision.</p>
               <div className="intake-questions" aria-label="Clarification questions">
                 {parsed?.questions.map(question => <p key={question}>{question}</p>)}
               </div>

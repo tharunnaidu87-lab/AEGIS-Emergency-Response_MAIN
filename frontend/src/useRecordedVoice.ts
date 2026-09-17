@@ -1,15 +1,18 @@
+import { saveVoiceDraft, loadVoiceDraft } from './outbox';
 import { useEffect, useRef, useState } from 'react';
 import { transcribeVoice, type SpeechMetadataInput, type VoiceTranscription } from './api';
 import { useBrowserVoiceIntake } from './useVoiceIntake';
 
 const mimeType = 'audio/webm;codecs=opus';
-const fallbackMessage = 'Advanced multilingual transcription unavailable. Using browser speech recognition fallback.';
+const fallbackMessage = 'Use browser speech, type your message, or submit the retained recording for review.';
 
 export function useRecordedVoice(onText: (value: string) => void) {
   const [phase, setPhase] = useState<'idle' | 'acquiring' | 'listening' | 'processing'>('idle');
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState('');
   const [fallback, setFallback] = useState(false);
+  const [recordedAudio, setRecordedAudio] = useState<Blob | null>(null);
+  useEffect(() => { void loadVoiceDraft().then(blob => { if (blob) setRecordedAudio(blob); }).catch(() => {}); }, []);
   const [result, setResult] = useState<VoiceTranscription | null>(null);
   const [browserTranscript, setBrowserTranscript] = useState('');
   const recorder = useRef<MediaRecorder | null>(null);
@@ -94,7 +97,10 @@ export function useRecordedVoice(onText: (value: string) => void) {
         const controller = new AbortController();
         upload.current = controller;
         try {
-          const transcription = await transcribeVoice(new Blob(chunks, { type: mimeType }), controller.signal);
+          const audio = new Blob(chunks, { type: mimeType });
+          setRecordedAudio(audio);
+          await saveVoiceDraft(audio);
+          const transcription = await transcribeVoice(audio, controller.signal);
           if (generation.current !== currentGeneration) return;
           setResult(transcription); setBrowserTranscript('');
           onTextRef.current(transcription.transcript);
@@ -102,8 +108,8 @@ export function useRecordedVoice(onText: (value: string) => void) {
           if (generation.current !== currentGeneration) return;
           setFallback(true);
           setError(browser.supported
-            ? 'Press START SPEAKING to repeat your message with browser recognition, or edit the transcript.'
-            : 'Browser speech recognition is unavailable. Type or paste your transcript below.');
+            ? 'You can submit the retained recording, repeat with browser recognition, or type your message.'
+            : 'Submit the retained recording for review, or type your message below.');
         } finally {
           if (generation.current === currentGeneration) { busy.current = false; setPhase('idle'); }
         }
@@ -123,5 +129,5 @@ export function useRecordedVoice(onText: (value: string) => void) {
     error: error || browser.error, notice: fallback ? fallbackMessage : '',
     detectedLanguage: result?.language_code || null,
     browserLanguage: browserTranscript ? navigator.language : null,
-    metadata, start, stop };
+    recordedAudio, metadata, start, stop };
 }

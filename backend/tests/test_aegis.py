@@ -32,8 +32,15 @@ class AegisTests(unittest.TestCase):
         self.path = Path(self.temp.name) / "test.sqlite"
         self.patch = patch.object(db, "DB_PATH", self.path)
         self.patch.start()
+        import os
+        self.auth_env = patch.dict(os.environ, {"AEGIS_COMMAND_USERNAME": "test-command", "AEGIS_COMMAND_PASSWORD": "test-password", "AEGIS_COMMAND_AUTH_SECRET": "test-secret-only"})
+        self.auth_env.start()
+        self.addCleanup(self.auth_env.stop)
         self.client = TestClient(app)
         self.client.__enter__()
+        from command_auth import create_command_token
+        token, _ = create_command_token('test-command')
+        self.client.headers['Authorization'] = 'Bearer ' + token
 
     def tearDown(self):
         self.client.__exit__(None, None, None)
@@ -240,7 +247,7 @@ class AegisTests(unittest.TestCase):
     def test_persistence_reconnect(self):
         report = self.report()
         db.init_db()  # Reinitializing does not seed or erase incidents.
-        with TestClient(app) as second:
+        with TestClient(app, headers=dict(self.client.headers)) as second:
             self.assertEqual(second.get("/reports/" + report["id"]).json()["report"]["id"], report["id"])
 
     def test_zero_population_and_fully_closed_shelters(self):
@@ -258,6 +265,74 @@ class AegisTests(unittest.TestCase):
         self.assertNotIn(unit["id"], {r["id"] for r in blocked["selected_resources"]})
         for shortage in blocked["shortages"]:
             self.assertEqual(shortage["required"] - shortage["available"], shortage["shortage"])
+
+    def test_complete_operational_lifecycle_to_resolution(self):
+        report = self.report()
+        assignments = self.dispatch(report)
+        self.assertGreater(len(assignments), 0)
+
+        dispatched = self.client.get(
+            "/reports/" + report["id"]
+        ).json()["report"]
+        self.assertEqual(dispatched["status"], "DISPATCHED")
+
+        for assignment in assignments:
+            response = self.status(assignment, "ACCEPTED")
+            self.assertEqual(response.status_code, 200, response.text)
+
+        accepted = self.client.get(
+            "/reports/" + report["id"]
+        ).json()["report"]
+        self.assertEqual(accepted["status"], "DISPATCHED")
+
+        for assignment in assignments:
+            response = self.status(assignment, "EN_ROUTE")
+            self.assertEqual(response.status_code, 200, response.text)
+
+        enroute = self.client.get(
+            "/reports/" + report["id"]
+        ).json()["report"]
+        self.assertEqual(enroute["status"], "EN_ROUTE")
+
+        for assignment in assignments:
+            response = self.status(assignment, "ON_SCENE")
+            self.assertEqual(response.status_code, 200, response.text)
+
+        on_scene = self.client.get(
+            "/reports/" + report["id"]
+        ).json()["report"]
+        self.assertEqual(on_scene["status"], "ON_SCENE")
+
+        for assignment in assignments:
+            response = self.status(assignment, "RESOLVED")
+            self.assertEqual(response.status_code, 200, response.text)
+
+        resolved = self.client.get(
+            "/reports/" + report["id"]
+        ).json()["report"]
+        self.assertEqual(resolved["status"], "RESOLVED")
+
+        final_assignments = self.client.get(
+            "/assignments",
+            params={"report_id": report["id"]},
+        ).json()["assignments"]
+        self.assertTrue(final_assignments)
+        self.assertTrue(
+            all(
+                assignment["status"] == "RESOLVED"
+                for assignment in final_assignments
+            )
+        )
+
+        events = self.client.get(
+            "/audit-events",
+            params={"report_id": report["id"]},
+        ).json()["events"]
+        event_types = {event["event_type"] for event in events}
+        self.assertIn("ASSIGNMENT_CREATED", event_types)
+        self.assertIn("ASSIGNMENT_STATUS_UPDATED", event_types)
+        self.assertIn("REPORT_STATUS_UPDATED", event_types)
+
 
 
 if __name__ == "__main__":

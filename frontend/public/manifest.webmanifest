@@ -1,0 +1,11 @@
+{
+  "name": "AEGIS Emergency Operations",
+  "short_name": "AEGIS",
+  "description": "AEGIS emergency reporting and disaster decision-support prototype.",
+  "start_url": "/report",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0d1010",
+  "theme_color": "#0d1010",
+  "orientation": "any"
+}

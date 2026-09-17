@@ -167,6 +167,7 @@ export interface AegisResponse {
 // SHARED REPORT
 // ============================================================
 export interface SharedReport {
+    photo_ids?: string[];
     intake?: IntakeMetadata | null;
     injured?: number;
     trapped?: number;
@@ -239,6 +240,8 @@ export interface ReassignmentResponse {
 // CREATE REPORT REQUEST
 // ============================================================
 export interface CreateReportRequest {
+    photos?: string[];
+    client_request_id?: string;
     intake_result_id?: string;
     intake_unknown_fields?: IntakeUnknownField[];
     injured?: number;
@@ -283,22 +286,15 @@ export interface AnalysisRequest {
 // GENERIC FETCH
 // ============================================================
 async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
-    const response = await fetch(`${API_BASE}${path}`, { ...options, signal: options?.signal ?? AbortSignal.timeout(12000) });
+    let response: Response;
+    try { response = await fetch(`${API_BASE}${path}`, { ...options, signal: options?.signal ?? AbortSignal.timeout(12000) }); }
+    catch { throw new Error('Connection interrupted. Keep your information and retry.'); }
     if (!response.ok) {
-        let message = `AEGIS backend error ${response.status}`;
-        try {
-            const body = await response.json();
-            if (body.detail) {
-                message =
-                    typeof body.detail ===
-                        "string"
-                        ? body.detail
-                        : JSON.stringify(body.detail);
-            }
-        }
-        catch {
-            // Response was not JSON.
-        }
+        const message = response.status === 401 ? 'Sign in again or open your saved receipt.'
+          : response.status === 403 ? 'Your session cannot perform this action.'
+          : response.status === 409 ? 'This action conflicts with the latest incident state. Refresh and review it.'
+          : response.status === 422 || response.status === 413 ? 'Check your report fields and attachment sizes, then retry.'
+          : 'Connection interrupted. Keep your information and retry.';
         throw new Error(message);
     }
     const data: T = await response.json();

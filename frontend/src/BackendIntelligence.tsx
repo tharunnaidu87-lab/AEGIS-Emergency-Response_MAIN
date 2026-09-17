@@ -3,6 +3,12 @@ import type { AegisResult } from "./api";
 export default function BackendIntelligence({ result, condensed = false }: { result: AegisResult; condensed?: boolean }) {
   const prediction = result.prediction;
   return <section className={"backend-intelligence" + (condensed ? " condensed" : "")} aria-label="Backend incident intelligence">
+    <div className="decision-summary"><strong>Hazard / exposure / safe capacity / authority decision</strong>
+      <p>{result.incident.type === 'SOS' ? 'Unknown emergency: precautionary high priority. No hazard footprint is inferred from SOS alone.' : `Estimated hazard footprint: ${result.hazard_analysis.current_radius_km ?? 0} km radius. ${result.hazard_analysis.total_population_requiring_action} people in modelled habitation exposure require action.`}</p>
+      <p>Immediate / short-term / medium-term population: {result.hazard_analysis.priority_summary.immediate_population} / {result.hazard_analysis.priority_summary.short_term_population} / {result.hazard_analysis.priority_summary.medium_term_population}. Safe relocation allocation: {result.relocation_plan?.total_allocated ?? 0}; unmet demand: {result.relocation_plan?.unallocated_people ?? 0}.</p>
+      <p>Capacity is limited by the lowest space, water, food, sanitation or medical provision, less occupancy. Destination allocations are planning estimates, not reservations.</p>
+      <p>All resources, availability, prediction and movement are simulated. Review the recommendations before approving normal dispatch.</p>
+    </div>
     <div className="intelligence-metrics">
       <div><small>SEVERITY / 100</small><strong>{result.severity_analysis.risk_score} / {result.severity_analysis.severity}</strong></div>
       <div><small>EVIDENCE QUALITY / 100</small><strong>{result.confidence_analysis?.score ?? "Unavailable"}</strong></div>

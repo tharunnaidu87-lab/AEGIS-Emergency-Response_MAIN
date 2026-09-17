@@ -18,6 +18,7 @@ from speech.sarvam import SarvamSpeechProvider
 from speech.provider import SpeechUnavailable
 import test_intake
 import db
+from provider_config import SARVAM_MODEL, NVIDIA_MODEL
 
 TEXT = "Hostel daggara fire start ayyindi, around twenty students inside unnaru."
 
@@ -45,7 +46,7 @@ class ProviderTests(unittest.IsolatedAsyncioTestCase):
         def handler(request):
             self.assertEqual(str(request.url), "https://api.sarvam.ai/speech-to-text")
             self.assertEqual(request.headers["api-subscription-key"], "test-sarvam")
-            for value in [b'recording.webm', b'unknown', b'codemix', b'saaras:v3', b'audio-sample']:
+            for value in [b'recording.webm', b'unknown', b'codemix', SARVAM_MODEL.encode(), b'audio-sample']:
                 self.assertIn(value, request.content)
             return httpx.Response(200, json={"transcript": TEXT, "language_code": "te-IN", "language_probability": .99})
         result = await SarvamSpeechProvider(httpx.MockTransport(handler)).transcribe(b"audio-sample", "audio/webm;codecs=opus")
@@ -74,7 +75,7 @@ class ProviderTests(unittest.IsolatedAsyncioTestCase):
         def handler(request):
             self.assertEqual(request.headers["Authorization"], "Bearer test-nvidia")
             payload = json.loads(request.content)
-            self.assertEqual(payload["model"], "google/gemma-4-31b-it")
+            self.assertEqual(payload["model"], NVIDIA_MODEL)
             self.assertNotIn("tools", payload)
             self.assertIn(TEXT, payload["messages"][1]["content"])
             return httpx.Response(200, json=completion(facts()))
@@ -98,7 +99,7 @@ class ProviderTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(calls), 2)
         self.assertEqual(result.method, "LOCAL_RULE_BASED")
         self.assertIsNone(result.people_affected)
-        self.assertTrue(any("Advanced NLP unavailable" in w for w in result.warnings))
+        self.assertTrue(any("Using basic emergency analysis" in w for w in result.warnings))
 
     async def test_schema_rejects_extra_fields_types_and_nonfinite(self):
         for change in [{"dispatch": True}, {"injured": -2}, {"injured": "2"}, {"spreading": "false"},

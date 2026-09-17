@@ -111,8 +111,14 @@ class IntakeApiTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(dir=directory)
         self.patch = patch.object(db, "DB_PATH", Path(self.temp.name) / "intake.sqlite")
         self.patch.start()
+        self.auth_env = patch.dict(os.environ, {"AEGIS_COMMAND_USERNAME": "test-command", "AEGIS_COMMAND_PASSWORD": "test-password", "AEGIS_COMMAND_AUTH_SECRET": "test-secret-only"})
+        self.auth_env.start()
+        self.addCleanup(self.auth_env.stop)
         self.client = TestClient(app)
         self.client.__enter__()
+        from command_auth import create_command_token
+        token, _ = create_command_token('test-command')
+        self.client.headers['Authorization'] = 'Bearer ' + token
 
     def tearDown(self):
         self.client.__exit__(None, None, None)

@@ -18,14 +18,18 @@ ARTIFACTS.mkdir(parents=True, exist_ok=True)
 class Browser:
     def __init__(self, fake_media=False):
         self.events = []
+        import socket
+        with socket.socket() as port_socket:
+            port_socket.bind(("127.0.0.1", 0))
+            self.port = port_socket.getsockname()[1]
         self.counter = 0
         profile = ROOT / ".cache" / ("browser-profile-" + uuid.uuid4().hex[:8])
         environment = dict(os.environ, TEMP=str(ROOT / ".cache" / "tmp"), TMP=str(ROOT / ".cache" / "tmp"))
         chrome = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-        self.log = (ARTIFACTS / "chrome.log").open("w", encoding="utf-8")
+        self.log = (ARTIFACTS / (profile.name + ".log")).open("w", encoding="utf-8")
         self.process = subprocess.Popen([chrome, "--headless=new", "--no-sandbox", "--disable-gpu-sandbox", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--no-first-run", "--no-default-browser-check",
-            "--disable-background-networking", "--disable-component-update", "--disable-breakpad",
-            "--disable-crash-reporter", "--remote-debugging-port=9222",
+            "--disable-background-networking", "--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows", "--disable-component-update", "--disable-breakpad",
+            "--disable-crash-reporter", "--remote-debugging-port=" + str(self.port),
             "--user-data-dir=" + str(profile), "--disk-cache-dir=" + str(profile / "cache"),
             "--crash-dumps-dir=" + str(profile / "crashes"), "--window-size=1440,1000", "about:blank"] +
             (["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] if fake_media else []),
@@ -33,10 +37,11 @@ class Browser:
         deadline = time.time() + 25
         while True:
             try:
-                with urllib.request.urlopen("http://127.0.0.1:9222/json", timeout=2) as response:
+                with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/json", timeout=2) as response:
                     targets = json.load(response)
                 target = next(t for t in targets if t["type"] == "page")
-                self.socket = connect(target["webSocketDebuggerUrl"], open_timeout=5, max_size=20_000_000, legacy=True)
+                self.target_id = target["id"]
+                self.socket = connect(target["webSocketDebuggerUrl"], open_timeout=5, max_size=20_000_000, max_queue=None, ping_interval=None, close_timeout=2, legacy=True)
                 break
             except Exception:
                 if time.time() > deadline:
@@ -52,12 +57,51 @@ class Browser:
         self.send("Network.setBlockedURLs", urls=["https://*.tile.openstreetmap.org/*", "https://tile.openstreetmap.org/*", "https://router.project-osrm.org/*"])
         self.send("Emulation.setDeviceMetricsOverride", width=1440, height=1000, deviceScaleFactor=1, mobile=False)
 
+    def service_worker_session(self):
+        if not hasattr(self, 'browser_socket'):
+            with urllib.request.urlopen(f'http://127.0.0.1:{self.port}/json/version', timeout=5) as response:
+                endpoint = json.load(response)['webSocketDebuggerUrl']
+            self.browser_socket = connect(endpoint, open_timeout=5, max_size=20_000_000, max_queue=None, ping_interval=None, close_timeout=2, legacy=True)
+        context = self.send('Target.getTargetInfo', targetId=self.target_id)['targetInfo'].get('browserContextId')
+        targets = self.send('Target.getTargets')['targetInfos']
+        worker = next(t for t in targets if t['type'] == 'service_worker' and t.get('browserContextId') == context)
+        with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/json", timeout=5) as response:
+            endpoint = next(t['webSocketDebuggerUrl'] for t in json.load(response) if t['id'] == worker['targetId'])
+        session = Browser.__new__(Browser); session.events = []; session.counter = 0
+        session.socket = connect(endpoint, open_timeout=5, max_size=20_000_000, max_queue=None, ping_interval=None, close_timeout=2, legacy=True)
+        session.send('Network.enable')
+        return session
+
+    def isolated(self):
+        if not hasattr(self, 'browser_socket'):
+            with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/json/version", timeout=5) as response:
+                endpoint = json.load(response)['webSocketDebuggerUrl']
+            self.browser_socket = connect(endpoint, open_timeout=5, max_size=20_000_000, max_queue=None, ping_interval=None, close_timeout=2, legacy=True)
+        context = self.send("Target.createBrowserContext")["browserContextId"]
+        target = self.send("Target.createTarget", url="about:blank", browserContextId=context)["targetId"]
+        with urllib.request.urlopen(f"http://127.0.0.1:{self.port}/json", timeout=5) as response:
+            targets = json.load(response)
+        endpoint = next(t["webSocketDebuggerUrl"] for t in targets if t["id"] == target)
+        child = Browser.__new__(Browser)
+        child.events = []; child.counter = 0; child.context = context
+        child.socket = connect(endpoint, open_timeout=5, max_size=20_000_000, max_queue=None, ping_interval=None, close_timeout=2, legacy=True)
+        for domain in ["Runtime", "Page", "Log", "Network"]:
+            child.send(domain + ".enable")
+        child.send("Network.setBlockedURLs", urls=["https://*.tile.openstreetmap.org/*", "https://tile.openstreetmap.org/*", "https://router.project-osrm.org/*"])
+        child.send("Emulation.setDeviceMetricsOverride", width=1440, height=1000, deviceScaleFactor=1, mobile=False)
+        return child
+
     def send(self, method, **params):
         self.counter += 1
         identifier = self.counter
-        self.socket.send(json.dumps(dict(id=identifier, method=method, params=params)))
+        channel = self.browser_socket if method.startswith("Target.") and hasattr(self, "browser_socket") else self.socket
+        channel.send(json.dumps(dict(id=identifier, method=method, params=params)))
+        deadline = time.monotonic() + 35
         while True:
-            message = json.loads(self.socket.recv(timeout=35))
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError("CDP command timed out: " + method)
+            message = json.loads(channel.recv(timeout=remaining))
             if message.get("id") == identifier:
                 if "error" in message:
                     raise RuntimeError(message["error"])
@@ -82,7 +126,10 @@ class Browser:
         raise AssertionError("Browser timed out: " + expression)
 
     def navigate(self, url):
-        self.send("Page.navigate", url=url)
+        # Observe the committed document rather than blocking on Chrome's navigation
+        # acknowledgement (which may arrive late while a service worker is active).
+        self.counter += 1
+        self.socket.send(json.dumps(dict(id=self.counter, method="Page.navigate", params={"url": url})))
         target = "location.href === " + json.dumps(url)
         if url.endswith(('/simulate', '/relocation')):
             target = "(" + target + " || location.pathname === '/command')"
@@ -103,6 +150,8 @@ class Browser:
             except Exception:
                 pass
             self.socket.close()
+        if hasattr(self, "browser_socket"):
+            self.browser_socket.close()
         if hasattr(self, "process"):
             try:
                 self.process.wait(timeout=10)
@@ -118,9 +167,11 @@ def main(extra_flow=None, run_core=True, backend_module="main:app", fake_media=F
     servers = []
     logs = []
     browser = None
-    env = dict(os.environ, AEGIS_DB_PATH=".cache/browser-" + uuid.uuid4().hex[:8] + ".sqlite",
+    env = dict(os.environ, PYTHONUTF8="1", AEGIS_DB_PATH=".cache/browser-" + uuid.uuid4().hex[:8] + ".sqlite",
                AEGIS_BACKEND_URL="http://127.0.0.1:8002", PYTHONDONTWRITEBYTECODE="1",
                TEMP=str(ROOT / ".cache" / "tmp"), TMP=str(ROOT / ".cache" / "tmp"),
+               AEGIS_COMMAND_USERNAME="demo-command", AEGIS_COMMAND_PASSWORD="AEGIS-demo-only", AEGIS_COMMAND_AUTH_SECRET="isolated-browser-test-secret",
+               AEGIS_RESPONDER_ACCOUNTS=json.dumps({r["id"]: "AEGIS-demo-only" for r in json.loads((ROOT / 'data/resources.json').read_text())}),
                npm_config_cache=str(ROOT / ".cache" / "npm"), SARVAM_API_KEY="", NVIDIA_API_KEY="")
     commands = [
         [str(ROOT / "backend/.venv/Scripts/python.exe"), "-B", "-m", "uvicorn", backend_module, "--app-dir", "backend", "--host", "127.0.0.1", "--port", "8002"],
@@ -145,6 +196,8 @@ def main(extra_flow=None, run_core=True, backend_module="main:app", fake_media=F
                     if time.time() > deadline:
                         raise
                     time.sleep(.2)
+        if any(server.poll() is not None for server in servers):
+            raise RuntimeError("A test server exited; refusing to use an unrelated server on these ports.")
         browser = Browser(fake_media=fake_media)
         base = "http://127.0.0.1:5174"
         report_id, route_status, scenario_text = None, "NOT_EXERCISED", ""

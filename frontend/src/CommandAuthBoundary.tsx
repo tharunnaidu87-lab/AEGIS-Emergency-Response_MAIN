@@ -1,166 +1,984 @@
-import { useEffect, useMemo, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
-import { clearCommandToken, getCommandToken, setCommandToken } from "./commandAuthFetch";
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/$/, "");
-const COMMAND_PATHS = new Set(["/command", "/simulate", "/relocation"]);
+import type {
+  FormEvent,
+  ReactNode,
+} from "react";
+
+import {
+  clearCommandToken,
+  getCommandToken,
+  setCommandToken,
+} from "./commandAuthFetch";
+
+
+const API_BASE =
+  (
+    import.meta.env
+      .VITE_API_BASE_URL ||
+    "/api"
+  )
+    .replace(
+      /\/$/,
+      ""
+    );
+
+
+const COMMAND_PATHS =
+  new Set([
+    "/command",
+    "/simulate",
+    "/relocation",
+    "/responder",
+  ]);
+
+
+type AuthRole =
+  | "AUTHORITY"
+  | "RESPONDER";
+
+
+type AuthPath =
+  | "command"
+  | "responder";
+
 
 type LoginResponse = {
-  status: string;
-  role: "AUTHORITY";
-  username: string;
-  token: string;
-  expires_at: number;
+  status?: string;
+
+  role:
+    AuthRole;
+
+  username:
+    string;
+
+  token:
+    string;
+
+  expires_at:
+    number;
 };
 
+
+type SessionResponse = {
+  status?: string;
+
+  role:
+    AuthRole;
+
+  username:
+    string;
+
+  expires_at:
+    number;
+};
+
+
+// ============================================================
+// ROUTE TRACKING
+// ============================================================
+
 function currentPath() {
-  return window.location.pathname;
+  return window
+    .location
+    .pathname;
 }
+
 
 function installHistoryEvents() {
-  const historyAny = history as History & { __aegisPatched?: boolean };
-  if (historyAny.__aegisPatched) return;
-  historyAny.__aegisPatched = true;
 
-  const originalPushState = history.pushState.bind(history);
-  const originalReplaceState = history.replaceState.bind(history);
+  const historyAny =
+    history as
+    History & {
+      __aegisPatched?:
+        boolean;
+    };
 
-  history.pushState = (data: unknown, unused: string, url?: string | URL | null) => {
-    originalPushState(data, unused, url);
-    window.dispatchEvent(new Event("aegis-locationchange"));
-  };
 
-  history.replaceState = (data: unknown, unused: string, url?: string | URL | null) => {
-    originalReplaceState(data, unused, url);
-    window.dispatchEvent(new Event("aegis-locationchange"));
-  };
+  if (
+    historyAny
+      .__aegisPatched
+  ) {
+    return;
+  }
+
+
+  historyAny
+    .__aegisPatched =
+      true;
+
+
+  const originalPushState =
+    history.pushState.bind(
+      history
+    );
+
+
+  const originalReplaceState =
+    history.replaceState.bind(
+      history
+    );
+
+
+  history.pushState =
+    (
+      data:
+        unknown,
+
+      unused:
+        string,
+
+      url?:
+        string |
+        URL |
+        null
+    ) => {
+
+      originalPushState(
+        data,
+        unused,
+        url
+      );
+
+
+      window.dispatchEvent(
+        new Event(
+          "aegis-locationchange"
+        )
+      );
+    };
+
+
+  history.replaceState =
+    (
+      data:
+        unknown,
+
+      unused:
+        string,
+
+      url?:
+        string |
+        URL |
+        null
+    ) => {
+
+      originalReplaceState(
+        data,
+        unused,
+        url
+      );
+
+
+      window.dispatchEvent(
+        new Event(
+          "aegis-locationchange"
+        )
+      );
+    };
 }
 
-export default function CommandAuthBoundary({ children }: { children: ReactNode }) {
-  const [path, setPath] = useState(currentPath());
-  const needsCommandAuth = useMemo(() => COMMAND_PATHS.has(path), [path]);
-  const [checking, setChecking] = useState(needsCommandAuth && Boolean(getCommandToken()));
-  const [authenticated, setAuthenticated] = useState(false);
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    installHistoryEvents();
-    const onLocation = () => setPath(currentPath());
-    window.addEventListener("popstate", onLocation);
-    window.addEventListener("aegis-locationchange", onLocation);
-    return () => {
-      window.removeEventListener("popstate", onLocation);
-      window.removeEventListener("aegis-locationchange", onLocation);
-    };
-  }, []);
+// ============================================================
+// AUTH BOUNDARY
+// ============================================================
 
-  useEffect(() => {
-    if (!needsCommandAuth) {
-      setAuthenticated(false);
-      setChecking(false);
-      return;
-    }
+export default function CommandAuthBoundary({
+  children,
+}: {
+  children:
+    ReactNode;
+}) {
 
-    const token = getCommandToken();
-    if (!token) {
-      setAuthenticated(false);
-      setChecking(false);
-      return;
-    }
+  const [
+    path,
+    setPath,
+  ] =
+    useState(
+      currentPath()
+    );
 
-    const controller = new AbortController();
-    setChecking(true);
-    fetch(`${API_BASE}/auth/command/session`, { signal: controller.signal })
-      .then(response => {
-        if (!response.ok) throw new Error("Session expired");
-        return response.json();
-      })
-      .then(() => {
-        if (!controller.signal.aborted) setAuthenticated(true);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          clearCommandToken();
-          setAuthenticated(false);
-        }
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) setChecking(false);
-      });
 
-    return () => controller.abort();
-  }, [needsCommandAuth]);
+  const responder =
+    path ===
+    "/responder";
 
-  async function login(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError("");
-    setSubmitting(true);
-    try {
-      const response = await fetch(`${API_BASE}/auth/command/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-        signal: AbortSignal.timeout(60000),
-      });
-      if (!response.ok) {
-        let detail = "Authority login failed.";
-        try {
-          const body = await response.json();
-          if (typeof body.detail === "string") detail = body.detail;
-        } catch {
-          // Keep safe generic message.
-        }
-        throw new Error(detail);
+
+  const authPath:
+    AuthPath =
+      responder
+        ? "responder"
+        : "command";
+
+
+  const expectedRole:
+    AuthRole =
+      responder
+        ? "RESPONDER"
+        : "AUTHORITY";
+
+
+  const needsAuth =
+    useMemo(
+      () =>
+        COMMAND_PATHS.has(
+          path
+        ),
+      [
+        path,
+      ]
+    );
+
+
+  const [
+    checking,
+    setChecking,
+  ] =
+    useState(
+      needsAuth &&
+      Boolean(
+        getCommandToken()
+      )
+    );
+
+
+  const [
+    authenticated,
+    setAuthenticated,
+  ] =
+    useState(
+      false
+    );
+
+
+  const [
+    authenticatedRole,
+    setAuthenticatedRole,
+  ] =
+    useState<
+      AuthRole |
+      ""
+    >("");
+
+
+  const [
+    username,
+    setUsername,
+  ] =
+    useState("");
+
+
+  const [
+    password,
+    setPassword,
+  ] =
+    useState("");
+
+
+  const [
+    error,
+    setError,
+  ] =
+    useState("");
+
+
+  const [
+    submitting,
+    setSubmitting,
+  ] =
+    useState(
+      false
+    );
+
+
+  // ==========================================================
+  // WATCH ROUTE
+  // ==========================================================
+
+  useEffect(
+    () => {
+
+      installHistoryEvents();
+
+
+      const onLocation =
+        () =>
+          setPath(
+            currentPath()
+          );
+
+
+      window.addEventListener(
+        "popstate",
+        onLocation
+      );
+
+
+      window.addEventListener(
+        "aegis-locationchange",
+        onLocation
+      );
+
+
+      return () => {
+
+        window.removeEventListener(
+          "popstate",
+          onLocation
+        );
+
+
+        window.removeEventListener(
+          "aegis-locationchange",
+          onLocation
+        );
+      };
+    },
+    []
+  );
+
+
+  // ==========================================================
+  // VERIFY EXISTING SESSION
+  // ==========================================================
+
+  useEffect(
+    () => {
+
+      if (
+        !needsAuth
+      ) {
+
+        setAuthenticated(
+          false
+        );
+
+        setAuthenticatedRole(
+          ""
+        );
+
+        setChecking(
+          false
+        );
+
+        return;
       }
-      const result: LoginResponse = await response.json();
-      setCommandToken(result.token);
+
+
+      const token =
+        getCommandToken();
+
+
+      if (
+        !token
+      ) {
+
+        setAuthenticated(
+          false
+        );
+
+        setAuthenticatedRole(
+          ""
+        );
+
+        setChecking(
+          false
+        );
+
+        return;
+      }
+
+
+      const controller =
+        new AbortController();
+
+
+      setChecking(
+        true
+      );
+
+
+      setAuthenticated(
+        false
+      );
+
+
+      fetch(
+        `${API_BASE}/auth/${authPath}/session`,
+        {
+          signal:
+            controller.signal,
+        }
+      )
+        .then(
+          response => {
+
+            if (
+              !response.ok
+            ) {
+              throw new Error(
+                "Session expired"
+              );
+            }
+
+
+            return response.json();
+          }
+        )
+        .then(
+          (
+            session:
+              SessionResponse
+          ) => {
+
+            if (
+              controller
+                .signal
+                .aborted
+            ) {
+              return;
+            }
+
+
+            if (
+              session.role !==
+              expectedRole
+            ) {
+              throw new Error(
+                "Wrong staff role"
+              );
+            }
+
+
+            setAuthenticated(
+              true
+            );
+
+
+            setAuthenticatedRole(
+              session.role
+            );
+
+
+            if (
+              responder
+            ) {
+
+              sessionStorage
+                .setItem(
+                  "aegis_unit",
+                  session.username
+                );
+            }
+          }
+        )
+        .catch(
+          () => {
+
+            if (
+              controller
+                .signal
+                .aborted
+            ) {
+              return;
+            }
+
+
+            clearCommandToken();
+
+
+            if (
+              responder
+            ) {
+
+              sessionStorage
+                .removeItem(
+                  "aegis_unit"
+                );
+            }
+
+
+            setAuthenticated(
+              false
+            );
+
+
+            setAuthenticatedRole(
+              ""
+            );
+          }
+        )
+        .finally(
+          () => {
+
+            if (
+              !controller
+                .signal
+                .aborted
+            ) {
+
+              setChecking(
+                false
+              );
+            }
+          }
+        );
+
+
+      return () =>
+        controller.abort();
+
+    },
+    [
+      needsAuth,
+      authPath,
+      responder,
+      expectedRole,
+    ]
+  );
+
+
+  // ==========================================================
+  // LOGIN
+  // ==========================================================
+
+  async function login(
+    event:
+      FormEvent<HTMLFormElement>
+  ) {
+
+    event.preventDefault();
+
+
+    setError("");
+
+
+    setSubmitting(
+      true
+    );
+
+
+    try {
+
+      const response =
+        await fetch(
+          `${API_BASE}/auth/${authPath}/login`,
+          {
+            method:
+              "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+
+            body:
+              JSON.stringify({
+                username,
+                password,
+              }),
+
+            signal:
+              AbortSignal.timeout(
+                60000
+              ),
+          }
+        );
+
+
+      if (
+        !response.ok
+      ) {
+
+        let detail =
+          responder
+            ? "Responder login failed."
+            : "Authority login failed.";
+
+
+        try {
+
+          const body =
+            await response.json();
+
+
+          if (
+            typeof body.detail ===
+            "string"
+          ) {
+
+            detail =
+              body.detail;
+          }
+
+        } catch {
+
+          // Keep safe fallback.
+        }
+
+
+        throw new Error(
+          detail
+        );
+      }
+
+
+      const result:
+        LoginResponse =
+          await response.json();
+
+
+      if (
+        result.role !==
+        expectedRole
+      ) {
+
+        throw new Error(
+          "Incorrect access role."
+        );
+      }
+
+
+      setCommandToken(
+        result.token
+      );
+
+
       setPassword("");
-      setAuthenticated(true);
-    } catch (loginError) {
-      setError(loginError instanceof Error ? loginError.message : "Authority login failed.");
+
+
+      setAuthenticated(
+        true
+      );
+
+
+      setAuthenticatedRole(
+        result.role
+      );
+
+
+      if (
+        responder
+      ) {
+
+        sessionStorage
+          .setItem(
+            "aegis_unit",
+            result.username
+          );
+      }
+
+    } catch (
+      loginError
+    ) {
+
+      setError(
+        loginError instanceof
+          Error
+          ? loginError.message
+          : "Check your sign-in details and connection, then retry."
+      );
+
     } finally {
-      setSubmitting(false);
+
+      setSubmitting(
+        false
+      );
     }
   }
 
-  if (!needsCommandAuth) return <>{children}</>;
 
-  if (checking) {
-    return <main className="center-state"><h1>AEGIS COMMAND</h1><p>VERIFYING AUTHORITY SESSION...</p></main>;
+  // ==========================================================
+  // PUBLIC ROUTES
+  // ==========================================================
+
+  if (
+    !needsAuth
+  ) {
+
+    return (
+      <>
+        {children}
+      </>
+    );
   }
 
-  if (!authenticated) {
+
+  // ==========================================================
+  // VERIFYING
+  // ==========================================================
+
+  if (
+    checking
+  ) {
+
     return (
-      <main className="center-state" style={{ minHeight: "100vh" }}>
-        <section style={{ width: "min(440px, 92vw)", border: "1px solid #31453d", padding: 28, background: "#0d1512" }}>
-          <small>AEGIS // AUTHORITY ACCESS</small>
-          <h1>Command Center Login</h1>
-          <p>Authorized emergency command personnel only.</p>
-          <form onSubmit={login} style={{ display: "grid", gap: 14 }}>
-            <label>Username<input autoComplete="username" value={username} onChange={e => setUsername(e.target.value)} required /></label>
-            <label>Password<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} required /></label>
-            {error && <p role="alert" style={{ color: "#ffb39d" }}>{error}</p>}
-            <button className="intake-primary" disabled={submitting} type="submit">{submitting ? "VERIFYING..." : "ENTER COMMAND CENTER"}</button>
-          </form>
-          <p><a href="/report">RETURN TO PUBLIC REPORTING</a></p>
-        </section>
+      <main className="center-state">
+
+        <h1>
+          {responder
+            ? "AEGIS FIELD"
+            : "AEGIS COMMAND"}
+        </h1>
+
+        <p>
+          VERIFYING{" "}
+          {responder
+            ? "RESPONDER"
+            : "AUTHORITY"}{" "}
+          SESSION...
+        </p>
+
       </main>
     );
   }
 
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => { clearCommandToken(); setAuthenticated(false); }}
-        style={{ position: "fixed", right: 18, bottom: 18, zIndex: 10000, padding: "9px 14px" }}
+
+  // ==========================================================
+  // LOGIN SCREEN
+  // ==========================================================
+
+  if (
+    !authenticated ||
+    authenticatedRole !==
+      expectedRole
+  ) {
+
+    return (
+
+      <main
+        className="center-state"
+        style={{
+          minHeight:
+            "100vh",
+        }}
       >
-        COMMAND LOGOUT
+
+        <section
+          style={{
+            width:
+              "min(440px, 92vw)",
+
+            border:
+              "1px solid #31453d",
+
+            padding:
+              28,
+
+            background:
+              "#0d1512",
+          }}
+        >
+
+          <small>
+
+            {responder
+              ? "AEGIS // RESPONDER ACCESS"
+              : "AEGIS // AUTHORITY ACCESS"}
+
+          </small>
+
+
+          <h1>
+
+            {responder
+              ? "Responder Login"
+              : "Command Center Login"}
+
+          </h1>
+
+
+          <p>
+
+            {responder
+              ? "Sign in with a DEMO responder unit ID assigned inside AEGIS."
+              : "Authorized AEGIS Command personnel only."}
+
+          </p>
+
+
+          <form
+            onSubmit={
+              login
+            }
+            style={{
+              display:
+                "grid",
+
+              gap:
+                14,
+            }}
+          >
+
+            <label>
+
+              {responder
+                ? "Unit ID"
+                : "Username"}
+
+              <input
+                autoComplete="username"
+                value={
+                  username
+                }
+                onChange={
+                  event =>
+                    setUsername(
+                      event
+                        .target
+                        .value
+                    )
+                }
+                required
+              />
+
+            </label>
+
+
+            <label>
+
+              Password
+
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={
+                  password
+                }
+                onChange={
+                  event =>
+                    setPassword(
+                      event
+                        .target
+                        .value
+                    )
+                }
+                required
+              />
+
+            </label>
+
+
+            {error && (
+
+              <p
+                role="alert"
+                style={{
+                  color:
+                    "#ffb39d",
+                }}
+              >
+                {error}
+              </p>
+
+            )}
+
+
+            <button
+              className="intake-primary"
+              disabled={
+                submitting
+              }
+              type="submit"
+            >
+
+              {submitting
+                ? "VERIFYING..."
+                : responder
+                  ? "ENTER RESPONDER"
+                  : "ENTER COMMAND CENTER"}
+
+            </button>
+
+          </form>
+
+
+          <p>
+
+            <a href="/report">
+              RETURN TO PUBLIC REPORTING
+            </a>
+
+          </p>
+
+        </section>
+
+      </main>
+    );
+  }
+
+
+  // ==========================================================
+  // AUTHENTICATED
+  // ==========================================================
+
+  return (
+
+    <>
+
+      <button
+
+        type="button"
+
+        onClick={
+          () => {
+
+            clearCommandToken();
+
+
+            if (
+              responder
+            ) {
+
+              sessionStorage
+                .removeItem(
+                  "aegis_unit"
+                );
+            }
+
+
+            setAuthenticated(
+              false
+            );
+
+
+            setAuthenticatedRole(
+              ""
+            );
+          }
+        }
+
+        style={{
+          position:
+            "fixed",
+
+          right:
+            18,
+
+          bottom:
+            18,
+
+          zIndex:
+            10000,
+
+          padding:
+            "9px 14px",
+        }}
+      >
+
+        {responder
+          ? "RESPONDER LOGOUT"
+          : "COMMAND LOGOUT"}
+
       </button>
+
+
       {children}
+
     </>
   );
 }
