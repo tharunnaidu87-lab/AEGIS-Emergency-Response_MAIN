@@ -40,7 +40,7 @@ function mergeTranscript(base: string, addition: string) {
 
   const leftWords = left.split(' ');
   const rightWords = right.split(' ');
-  const maxOverlap = Math.min(8, leftWords.length, rightWords.length);
+  const maxOverlap = Math.min(leftWords.length, rightWords.length);
   let overlap = 0;
 
   for (let size = maxOverlap; size > 0; size--) {
@@ -50,6 +50,13 @@ function mergeTranscript(base: string, addition: string) {
       overlap = size;
       break;
     }
+  }
+
+  if (!overlap) {
+    const leftKey = leftWords.map(wordKey).join('\u0000');
+    const rightKey = rightWords.map(wordKey).join('\u0000');
+    if (rightKey.startsWith(leftKey + '\u0000')) return right;
+    if (leftKey.startsWith(rightKey + '\u0000')) return left;
   }
 
   return collapseAdjacentDuplicates([...leftWords, ...rightWords.slice(overlap)].join(' '));
