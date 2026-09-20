@@ -29,12 +29,13 @@ function ChannelPage({ source }: { source: Channel }) {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState('');
   const [receipt] = useState('');
+  const [browserSpeechLanguage, setBrowserSpeechLanguage] = useState('');
   const transcript = useRef<HTMLTextAreaElement>(null);
   const parsedText = useRef('');
   const sendingLock = useRef(false);
   const mounted = useRef(true);
   const location = useIntakeLocation();
-  const voice = useRecordedVoice(changeText);
+  const voice = useRecordedVoice(changeText, browserSpeechLanguage || undefined);
   const { latitude, longitude, gpsVerified, valid } = location;
 
   function changeText(value: string) {
@@ -175,6 +176,16 @@ function ChannelPage({ source }: { source: Channel }) {
             <h2><span>01</span> {source === 'CALL' ? 'Tell us what happened' : 'Write your message'}</h2>
             {source === 'CALL' && <div className="voice-controls">
               <small>AUTO-DETECT LANGUAGE</small>
+              <label>Browser fallback language
+                <select aria-label="Browser fallback language" value={browserSpeechLanguage}
+                  disabled={voice.listening || voice.processing || sending}
+                  onChange={e => setBrowserSpeechLanguage(e.target.value)}>
+                  <option value="">Device default</option>
+                  <option value="en-IN">English</option>
+                  <option value="ta-IN">Tamil</option>
+                </select>
+              </label>
+              <small>AEGIS auto-detects language when multilingual transcription is available. This selection is used only if the browser fallback is needed.</small>
               <p className={'voice-status' + (voice.listening ? ' listening' : '')} role="status">{voice.listening ? `LISTENING... ${voice.seconds}s / 25s` : voice.processing ? voice.phase === 'acquiring' ? 'OPENING MICROPHONE...' : 'PROCESSING AUDIO...' : 'READY TO RECORD OR REVIEW'}</p>
               <div className="voice-actions">
                 <button className="intake-primary" disabled={voice.listening || voice.processing || sending || !voice.supported} onClick={() => startVoice()}>START SPEAKING</button>
