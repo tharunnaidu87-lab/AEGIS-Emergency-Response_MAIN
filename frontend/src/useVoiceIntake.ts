@@ -70,6 +70,7 @@ export function useBrowserVoiceIntake(text: string, onText: (value: string) => v
   const sessionStartedAt = useRef(0);
   const accumulated = useRef('');
   const restartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rotateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supported = Boolean((window as SpeechWindow).SpeechRecognition || (window as SpeechWindow).webkitSpeechRecognition);
 
   function clearRestartTimer() {
@@ -79,9 +80,17 @@ export function useBrowserVoiceIntake(text: string, onText: (value: string) => v
     }
   }
 
+  function clearRotateTimer() {
+    if (rotateTimer.current) {
+      clearTimeout(rotateTimer.current);
+      rotateTimer.current = null;
+    }
+  }
+
   useEffect(() => () => {
     sessionActive.current = false;
     clearRestartTimer();
+    clearRotateTimer();
     const current = recognition.current;
     recognition.current = null;
     if (current) {
@@ -151,6 +160,7 @@ export function useBrowserVoiceIntake(text: string, onText: (value: string) => v
 
       current.onend = () => {
         if (recognition.current !== current) return;
+        clearRotateTimer();
         recognition.current = null;
 
         if (latestSessionTranscript) {
@@ -177,6 +187,18 @@ export function useBrowserVoiceIntake(text: string, onText: (value: string) => v
 
       setError('');
       current.start();
+
+      // Mobile Chrome commonly ends a Web Speech run around 15-16 seconds.
+      // Rotate each recognition instance before that cap while preserving the
+      // accumulated transcript, so the overall AEGIS session can continue.
+      const remaining = 25000 - (Date.now() - sessionStartedAt.current);
+      if (remaining > 3000) {
+        rotateTimer.current = setTimeout(() => {
+          rotateTimer.current = null;
+          if (recognition.current !== current || !sessionActive.current) return;
+          try { current.stop(); } catch {}
+        }, Math.min(10000, Math.max(2500, remaining - 1200)));
+      }
     } catch {
       if (current) {
         current.onresult = null; current.onerror = null; current.onend = null;
@@ -192,6 +214,7 @@ export function useBrowserVoiceIntake(text: string, onText: (value: string) => v
   function start(retry = false) {
     if (sessionActive.current || recognition.current) return;
     clearRestartTimer();
+    clearRotateTimer();
     accumulated.current = retry ? '' : text.trim();
     if (retry) onText('');
     sessionStartedAt.current = Date.now();
@@ -204,6 +227,7 @@ export function useBrowserVoiceIntake(text: string, onText: (value: string) => v
   function stop() {
     sessionActive.current = false;
     clearRestartTimer();
+    clearRotateTimer();
     setListening(false);
     const current = recognition.current;
     if (!current) return;
