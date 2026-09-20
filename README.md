@@ -57,6 +57,8 @@ Use `requirements.txt` if browser verification is unnecessary. Downloads require
 | Variable | Default and purpose |
 | --- | --- |
 | `AEGIS_DB_PATH` | `data/aegis.db`, relative to the project root; outside-project paths are rejected |
+| `DATABASE_URL` | PostgreSQL connection URL; required on Render, omitted for local SQLite |
+| `AEGIS_DB_POOL_SIZE` | PostgreSQL pool size, clamped to 1-10 (default `5`) |
 | `AEGIS_BACKEND_URL` | Vite dev proxy target: `http://127.0.0.1:8001` |
 | `AEGIS_CORS_ORIGINS` | Comma-separated local frontend origins; set explicit origins for separate production hosting |
 | `AEGIS_ENABLE_RESET` | `false`; optional destructive reset is disabled |

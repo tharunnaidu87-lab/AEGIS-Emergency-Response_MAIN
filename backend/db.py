@@ -5,6 +5,7 @@ import math
 import sqlite3
 import threading
 import uuid
+import database_runtime
 
 from datetime import datetime, timezone
 from pathlib import Path
@@ -45,6 +46,9 @@ class ClosingConnection(sqlite3.Connection):
 
 def get_connection():
 
+    if database_runtime.database_backend() == "postgresql":
+        return database_runtime.postgres_connection()
+
     connection = sqlite3.connect(
         DB_PATH,
         timeout=30,
@@ -62,6 +66,14 @@ def get_connection():
     )
 
     return connection
+
+
+def database_backend():
+    return database_runtime.database_backend()
+
+
+def close_pool():
+    database_runtime.close_pool()
 
 
 # ============================================================
@@ -132,6 +144,18 @@ def _table_columns(
     table_name
 ):
 
+    if getattr(connection, "dialect", "sqlite") == "postgresql":
+        rows = connection.execute(
+            """
+            SELECT column_name AS name
+            FROM information_schema.columns
+            WHERE table_schema = current_schema()
+              AND table_name = ?;
+            """,
+            (table_name,),
+        ).fetchall()
+        return {row["name"] for row in rows}
+
     rows = connection.execute(
         f"PRAGMA table_info({table_name});"
     ).fetchall()
@@ -148,6 +172,12 @@ def _ensure_column(
     column_name,
     definition
 ):
+
+    if getattr(connection, "dialect", "sqlite") == "postgresql":
+        connection.execute(
+            f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS {column_name} {definition};"
+        )
+        return
 
     if (
         column_name

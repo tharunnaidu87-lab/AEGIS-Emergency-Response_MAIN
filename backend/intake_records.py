@@ -20,7 +20,7 @@ def get_preview(identifier, kind):
                                  (identifier, kind, time.time() - 86400)).fetchone()
     if row is None:
         raise ValueError("This voice/intake preview expired or is unavailable. Analyze the transcript again.")
-    return json.loads(row[0])
+    return json.loads(row["payload_json"])
 
 
 def speech_metadata(request):

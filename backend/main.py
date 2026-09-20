@@ -40,6 +40,7 @@ async def lifespan(app):
         worker.cancel()
         with suppress(asyncio.CancelledError):
             await worker
+        db.close_pool()
 
 
 app = FastAPI(title="AEGIS Backend", version="5.0", lifespan=lifespan)
@@ -67,15 +68,18 @@ def conflict(action):
 
 @app.get("/")
 def home():
-    return {"system": "AEGIS", "status": "ONLINE", "version": "5.0", "database": "SQLite",
+    return {"system": "AEGIS", "status": "ONLINE", "version": "5.0", "database": db.database_backend(),
             "mode": "LOCAL_DEMO_DECISION_SUPPORT"}
 
 
 @app.get("/health")
 def health():
     with db.get_connection() as connection:
-        connection.execute("SELECT count(*) FROM reports").fetchone()
-    return {"status": "HEALTHY", "backend": "ONLINE", "database": "CONNECTED"}
+        count = connection.execute(
+            "SELECT count(*) AS report_count FROM reports"
+        ).fetchone()["report_count"]
+    return {"status": "HEALTHY", "backend": "ONLINE", "database": "CONNECTED",
+            "database_backend": db.database_backend(), "reports": count}
 
 
 @app.post("/aegis-analyse")

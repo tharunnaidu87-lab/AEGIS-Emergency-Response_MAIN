@@ -14,10 +14,8 @@ import db
 
 def init_schema():
     with db.WRITE_LOCK, db.get_connection() as conn:
-        columns = {r[1] for r in conn.execute('PRAGMA table_info(reports)')}
         for name in ('client_request_id', 'request_hash', 'tracking_token'):
-            if name not in columns:
-                conn.execute(f'ALTER TABLE reports ADD COLUMN {name} TEXT')
+            db._ensure_column(conn, 'reports', name, 'TEXT')
         conn.execute('CREATE UNIQUE INDEX IF NOT EXISTS report_client_id ON reports(client_request_id)')
         conn.execute('''CREATE TABLE IF NOT EXISTS report_media (
             id TEXT PRIMARY KEY, report_id TEXT NOT NULL REFERENCES reports(id) ON DELETE CASCADE,
