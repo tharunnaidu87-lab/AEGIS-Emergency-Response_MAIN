@@ -19,6 +19,42 @@ const errors: Record<string, string> = {
   aborted: 'Recording stopped. You can review the transcript or try again.',
 };
 
+function clean(value: string) {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function wordKey(value: string) {
+  return value.toLocaleLowerCase().replace(/[.,!?;:'"()[\]{}]/g, '');
+}
+
+function collapseAdjacentDuplicates(value: string) {
+  const words = clean(value).split(' ').filter(Boolean);
+  return words.filter((word, index) => index === 0 || wordKey(word) !== wordKey(words[index - 1])).join(' ');
+}
+
+function mergeTranscript(base: string, addition: string) {
+  const left = collapseAdjacentDuplicates(base);
+  const right = collapseAdjacentDuplicates(addition);
+  if (!left) return right;
+  if (!right) return left;
+
+  const leftWords = left.split(' ');
+  const rightWords = right.split(' ');
+  const maxOverlap = Math.min(8, leftWords.length, rightWords.length);
+  let overlap = 0;
+
+  for (let size = maxOverlap; size > 0; size--) {
+    const leftTail = leftWords.slice(-size).map(wordKey).join('\u0000');
+    const rightHead = rightWords.slice(0, size).map(wordKey).join('\u0000');
+    if (leftTail === rightHead) {
+      overlap = size;
+      break;
+    }
+  }
+
+  return collapseAdjacentDuplicates([...leftWords, ...rightWords.slice(overlap)].join(' '));
+}
+
 export function useBrowserVoiceIntake(text: string, onText: (value: string) => void) {
   const [listening, setListening] = useState(false);
   const [error, setError] = useState('');
@@ -45,9 +81,19 @@ export function useBrowserVoiceIntake(text: string, onText: (value: string) => v
       let failed = false;
       current.onresult = event => {
         if (recognition.current !== current) return;
-        const transcript = Array.from(event.results).map(result => result[0]?.transcript || '').join(' ').trim();
-        heard = heard || Boolean(transcript);
-        onText([prefix, transcript].filter(Boolean).join(' '));
+
+        let finalTranscript = '';
+        let interimTranscript = '';
+        for (const result of Array.from(event.results)) {
+          const segment = clean(result[0]?.transcript || '');
+          if (!segment) continue;
+          heard = true;
+          if (result.isFinal) finalTranscript = mergeTranscript(finalTranscript, segment);
+          else interimTranscript = mergeTranscript(interimTranscript, segment);
+        }
+
+        const sessionTranscript = mergeTranscript(finalTranscript, interimTranscript);
+        onText(mergeTranscript(prefix, sessionTranscript));
       };
       current.onerror = event => {
         if (recognition.current !== current) return;
