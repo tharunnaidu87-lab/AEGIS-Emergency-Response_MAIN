@@ -21,8 +21,13 @@ class SarvamSpeechProvider:
             async with asyncio.timeout(min(STT_TIMEOUT, 45)), httpx.AsyncClient(
                 timeout=httpx.Timeout(min(STT_TIMEOUT, 45), connect=8), transport=self.transport,
                 follow_redirects=False) as client:
+                fields = {"model": SARVAM_MODEL, "language_code": "unknown"}
+                # Saaras v4 auto-detects/transcribes without the legacy mode field.
+                # Only v3 requires an explicit mode for code-mixed output.
+                if SARVAM_MODEL.startswith("saaras:v3"):
+                    fields["mode"] = "codemix"
                 response = await client.post(SARVAM_URL, headers={"api-subscription-key": key},
-                    data={"model": SARVAM_MODEL, "language_code": "unknown", "mode": "codemix"},
+                    data=fields,
                     files={"file": ("recording.webm", audio, "audio/webm")})
                 response.raise_for_status()
                 value = response.json()
