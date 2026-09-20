@@ -102,6 +102,91 @@ KEYWORDS = {
     "Landslide": r"landslide|mudslide|rocks? falling|soil collapse",
 }
 
+TAMIL_KEYWORDS = {
+    "Fire": r"தீ(?:\s*விபத்து)?|எரிகிறது|எரிந்து|புகை|வெடிப்பு",
+    "Flood": r"வெள்ளம்|நீர்ப்பெருக்கு|தண்ணீர்\s+(?:உயர்ந்து|உயர்கிறது|புகுகிறது|நிரம்புகிறது)",
+    "Accident": r"சாலை\s*விபத்து|விபத்து|மோதல்",
+    "Landslide": r"நிலச்சரிவு|மண்\s*சரிவு|பாறை(?:கள்)?\s*சரிவு",
+}
+
+TAMIL_NUMBER_VALUES = {
+    "பூஜ்ஜியம்": 0, "சுழியம்": 0,
+    "ஒன்று": 1, "ஒரு": 1, "இரண்டு": 2, "இரு": 2, "மூன்று": 3, "நான்கு": 4,
+    "ஐந்து": 5, "ஆறு": 6, "ஏழு": 7, "எட்டு": 8, "ஒன்பது": 9, "பத்து": 10,
+    "பதினொன்று": 11, "பன்னிரண்டு": 12, "பதின்மூன்று": 13, "பதினான்கு": 14,
+    "பதினைந்து": 15, "பதினாறு": 16, "பதினேழு": 17, "பதினெட்டு": 18,
+    "பத்தொன்பது": 19, "பதினொன்பது": 19, "இருபது": 20, "முப்பது": 30,
+    "நாற்பது": 40, "ஐம்பது": 50, "அறுபது": 60, "எழுபது": 70,
+    "எண்பது": 80, "தொண்ணூறு": 90,
+}
+TAMIL_HUNDREDS = {"நூறு", "நூற்று", "நூற்றி"}
+TAMIL_THOUSANDS = {"ஆயிரம்", "ஆயிரத்து", "ஆயிரத்து"}
+_TAMIL_NUMBER_WORDS = sorted(
+    [*TAMIL_NUMBER_VALUES, *TAMIL_HUNDREDS, *TAMIL_THOUSANDS],
+    key=len, reverse=True,
+)
+TAMIL_NUMBER_WORD_PATTERN = "|".join(re.escape(word) for word in _TAMIL_NUMBER_WORDS)
+TAMIL_NUMBER_EXPR = rf"(?:\d+|(?:{TAMIL_NUMBER_WORD_PATTERN})(?:\s+(?:{TAMIL_NUMBER_WORD_PATTERN})){{0,4}})"
+
+
+def tamil_number(value):
+    value = value.strip()
+    if value.isdigit():
+        return int(value)
+    total = current = 0
+    for word in value.split():
+        if word in TAMIL_NUMBER_VALUES:
+            current += TAMIL_NUMBER_VALUES[word]
+        elif word in TAMIL_HUNDREDS:
+            current = max(1, current) * 100
+        elif word in TAMIL_THOUSANDS:
+            total += max(1, current) * 1000
+            current = 0
+        else:
+            return None
+    return total + current
+
+
+def tamil_count_for(text, kind):
+    suffixes = {
+        "people_affected": r"(?:பாதிக்கப்பட்ட(?:ுள்ளனர்|வர்கள்|வர்கள்\s*உள்ளனர்)?|பாதிப்புக்குள்ளாகியுள்ளனர்)",
+        "injured": r"(?:காயமடைந்த(?:ுள்ளனர்|வர்கள்)?|காயம்\s*அடைந்த(?:ுள்ளனர்|வர்கள்)?)",
+        "trapped": r"(?:சிக்கிய(?:ுள்ளனர்|வர்கள்)?|சிக்கிக்\s*கொண்ட(?:ுள்ளனர்|வர்கள்)?)",
+    }
+    pattern = rf"(?P<number>{TAMIL_NUMBER_EXPR})\s*(?:பேர்|மக்கள்|நபர்கள்?)\s*{suffixes[kind]}"
+    values = []
+    for match in re.finditer(pattern, text):
+        value = tamil_number(match.group("number"))
+        if value is not None and 0 <= value <= 1000000:
+            values.append(value)
+    return max(values) if values else None
+
+
+def tamil_flag(text, positive, negative):
+    has_positive = bool(re.search(positive, text))
+    has_negative = bool(re.search(negative, text))
+    if has_positive == has_negative:
+        return None
+    return has_positive
+
+
+def extract_tamil_location(text):
+    cleaned = re.sub(r"\s+", " ", text).strip()
+    hazard = r"(?:கடுமையான\s+)?(?:வெள்ளம்|தீ(?:\s*விபத்து)?|விபத்து|நிலச்சரிவு|தண்ணீர்)"
+    match = re.search(
+        rf"(?:^|[.!?]\s*)(?P<location>[\w\u0B80-\u0BFF -]{{2,120}}?(?:அருகே|அருகில்|பகுதியில்|சாலையில்|கிராமத்தில்))\s+(?={hazard})",
+        cleaned,
+    )
+    if match:
+        return match.group("location").strip()[:200]
+    match = re.search(
+        r"(?P<location>[\w\u0B80-\u0BFF -]{2,100}?(?:கிராமம்|பள்ளி|மருத்துவமனை|பேருந்து\s*நிலையம்))\s*(?:அருகே|அருகில்)",
+        cleaned,
+    )
+    if match:
+        return (match.group("location").strip() + " அருகே")[:200]
+    return None
+
 
 def negated(text, start):
     prefix = re.split(r"[.!?;,]|\bbut\b|\band\b", text[:start])[-1][-65:]
