@@ -62,7 +62,7 @@ function mergeTranscript(base: string, addition: string) {
   return collapseAdjacentDuplicates([...leftWords, ...rightWords.slice(overlap)].join(' '));
 }
 
-export function useBrowserVoiceIntake(text: string, onText: (value: string) => void) {
+export function useBrowserVoiceIntake(text: string, onText: (value: string) => void, language?: string) {
   const [listening, setListening] = useState(false);
   const [error, setError] = useState('');
   const recognition = useRef<Recognition | null>(null);
@@ -81,7 +81,7 @@ export function useBrowserVoiceIntake(text: string, onText: (value: string) => v
     try {
       current = new Constructor();
       recognition.current = current;
-      current.lang = navigator.language || 'en'; current.continuous = true; current.interimResults = true;
+      current.lang = language || navigator.language || 'en'; current.continuous = true; current.interimResults = true;
       const prefix = retry ? '' : text.trim();
       if (retry) onText('');
       let heard = false;
