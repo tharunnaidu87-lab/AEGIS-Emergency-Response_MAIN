@@ -277,7 +277,22 @@ class LocalIntakeParser:
             warnings.append("More than one emergency type was mentioned. Choose the main incident.")
         if incident:
             evidence["incident_type"] = scores[incident][0].group()
+
+        is_tamil = bool(re.search(r"[\u0B80-\u0BFF]", original))
+        if is_tamil:
+            tamil_scores = {kind: list(re.finditer(pattern, original)) for kind, pattern in TAMIL_KEYWORDS.items()}
+            tamil_ranked = sorted(tamil_scores, key=lambda kind: len(tamil_scores[kind]), reverse=True)
+            if not incident and tamil_scores[tamil_ranked[0]]:
+                incident = tamil_ranked[0]
+                evidence["incident_type"] = tamil_scores[incident][0].group()
+            elif incident and tamil_scores[tamil_ranked[0]] and tamil_ranked[0] != incident:
+                warnings.append("More than one emergency type was mentioned. Choose the main incident.")
+
         counts = {key: count_for(text, key, warnings) for key in ("people_affected", "injured", "trapped")}
+        if is_tamil:
+            for key in ("people_affected", "injured", "trapped"):
+                if counts[key] is None:
+                    counts[key] = tamil_count_for(original, key)
         # '30 people trapped' explicitly describes a group, and supplies a known minimum.
         if counts["people_affected"] is None and counts["trapped"] is not None and re.search(r"\d+\s+" + PERSON, text):
             counts["people_affected"] = counts["trapped"]
@@ -285,6 +300,9 @@ class LocalIntakeParser:
         if counts["people_affected"] is not None and max(counts["injured"] or 0, counts["trapped"] or 0) > counts["people_affected"]:
             warnings.append("Injured/trapped count exceeds the stated total. Correct the counts before sending.")
         location = extract_location(original)
+        if is_tamil and not location:
+            location = extract_tamil_location(original)
+
         spreading = flag(text, r"spreading|(?:water (?:is )?)?(?:increasing|rising)(?: quickly| rapidly)?|getting worse|overflowing")
         structural = flag(text, r"(?:structural (?:damage|failure)|(?:building |roof |wall |bridge |hostel )?(?:collapsed|collapsing))")
         groups = [label for label, pattern in {
@@ -292,6 +310,30 @@ class LocalIntakeParser:
             "Disabled": r"disabled|wheelchair|disabilities", "Pregnant": r"pregnant",
             "Medical dependent": r"medical(?:ly)? dependent|oxygen dependent|dialysis",
         }.items() if positive_matches(text, pattern)]
+
+        if is_tamil:
+            if spreading is None:
+                spreading = tamil_flag(
+                    original,
+                    r"பரவி(?:\s*வருகிறது|க்கொண்டிருக்கிறது)?|பரவுகிறது|வேகமாக\s+(?:உயர்ந்து|உயர்கிறது)|தொடர்ந்து\s+பரவி",
+                    r"பரவவில்லை|பரவாமல்|நிலைமை\s*சீராக",
+                )
+            if structural is None:
+                structural = tamil_flag(
+                    original,
+                    r"கட்டமைப்பு\s*சேதம்|வீடுகள்?\s*சேதமடைந்த|கட்டிடங்கள்?\s*சேதமடைந்த|சுவர்\s*இடிந்த|வீடு\s*இடிந்த",
+                    r"கட்டமைப்பு\s*சேதம்\s*இல்லை|சேதம்\s*இல்லை",
+                )
+            tamil_groups = {
+                "Children": r"குழந்தைகள்|சிறுவர்கள்|சிறுமிகள்",
+                "Elderly": r"முதியவர்கள்|மூத்த\s*குடிமக்கள்",
+                "Disabled": r"மாற்றுத்திறனாளிகள்|ஊனமுற்றவர்கள்",
+                "Pregnant": r"கர்ப்பிணிகள்|கர்ப்பிணிப்\s*பெண்கள்",
+                "Medical dependent": r"மருத்துவ\s*உதவி\s*தேவைப்படும்|ஆக்சிஜன்\s*தேவைப்படும்|டயாலிசிஸ்",
+            }
+            for label, pattern in tamil_groups.items():
+                if label not in groups and re.search(pattern, original):
+                    groups.append(label)
         urgency = positive_matches(text, r"critical|unconscious|heavy smoke|rapidly|rapid|explosion")
         intense = spreading is True or structural is True or bool(urgency)
         confidence_factors = {"incident": 30 if incident else 0, "location": 20 if location else 0,
@@ -311,7 +353,9 @@ class LocalIntakeParser:
             description=original, latitude=request.latitude, longitude=request.longitude, gps_verified=request.gps_verified,
             confidence=round(sum(confidence_factors.values())/100, 2), confidence_factors=confidence_factors,
             missing_fields=missing, questions=[question for key, question in questions.items() if key in missing],
-            warnings=list(dict.fromkeys(warnings)), evidence=evidence)
+            warnings=list(dict.fromkeys(warnings)),
+            evidence=evidence,
+            language="Tamil" if is_tamil else None)
 
 
 local_parser: IntakeParser = LocalIntakeParser()
