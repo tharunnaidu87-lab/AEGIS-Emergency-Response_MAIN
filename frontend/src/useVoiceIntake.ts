@@ -66,69 +66,152 @@ export function useBrowserVoiceIntake(text: string, onText: (value: string) => v
   const [listening, setListening] = useState(false);
   const [error, setError] = useState('');
   const recognition = useRef<Recognition | null>(null);
+  const sessionActive = useRef(false);
+  const sessionStartedAt = useRef(0);
+  const accumulated = useRef('');
+  const restartTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const supported = Boolean((window as SpeechWindow).SpeechRecognition || (window as SpeechWindow).webkitSpeechRecognition);
+
+  function clearRestartTimer() {
+    if (restartTimer.current) {
+      clearTimeout(restartTimer.current);
+      restartTimer.current = null;
+    }
+  }
+
   useEffect(() => () => {
+    sessionActive.current = false;
+    clearRestartTimer();
     const current = recognition.current;
     recognition.current = null;
-    if (current) { current.onresult = null; current.onerror = null; current.onend = null; current.abort(); }
+    if (current) {
+      current.onresult = null; current.onerror = null; current.onend = null;
+      try { current.abort(); } catch {}
+    }
   }, []);
 
-  function start(retry = false) {
-    if (recognition.current) return;
+  function launchRecognition() {
+    if (!sessionActive.current || recognition.current) return;
     const Constructor = (window as SpeechWindow).SpeechRecognition || (window as SpeechWindow).webkitSpeechRecognition;
-    if (!Constructor) { setError('Speech recognition is not supported here. Type or paste your transcript below.'); return; }
+    if (!Constructor) {
+      sessionActive.current = false;
+      setListening(false);
+      setError('Speech recognition is not supported here. Type or paste your transcript below.');
+      return;
+    }
+
     let current: Recognition | null = null;
     try {
       current = new Constructor();
       recognition.current = current;
-      current.lang = language || navigator.language || 'en'; current.continuous = true; current.interimResults = true;
-      const prefix = retry ? '' : text.trim();
-      if (retry) onText('');
-      let heard = false;
-      let failed = false;
+      current.lang = language || navigator.language || 'en';
+      current.continuous = true;
+      current.interimResults = true;
+
+      const baseTranscript = accumulated.current;
       const resultSlots: string[] = [];
+      let latestSessionTranscript = '';
+      let heardThisRun = false;
+      let fatalError = false;
+
       current.onresult = event => {
         if (recognition.current !== current) return;
 
         for (let index = event.resultIndex; index < event.results.length; index++) {
           const segment = clean(event.results[index]?.[0]?.transcript || '');
           resultSlots[index] = segment;
-          heard = heard || Boolean(segment);
+          heardThisRun = heardThisRun || Boolean(segment);
         }
 
-        // Web Speech re-emits earlier hypotheses as they change. Keep one slot per
-        // recognition result and rebuild the transcript from the current slots,
-        // instead of appending every event and multiplying repeated phrases.
-        const sessionTranscript = resultSlots
+        latestSessionTranscript = resultSlots
           .map(collapseAdjacentDuplicates)
           .filter(Boolean)
           .reduce((value, segment) => mergeTranscript(value, segment), '');
 
-        onText(mergeTranscript(prefix, sessionTranscript));
+        onText(mergeTranscript(baseTranscript, latestSessionTranscript));
       };
+
       current.onerror = event => {
         if (recognition.current !== current) return;
-        failed = true;
+
+        if (event.error === 'no-speech') {
+          // Mobile Chrome often ends a recognition run after a short pause.
+          // Keep the overall AEGIS listening session alive and restart below.
+          return;
+        }
+
+        if (event.error === 'aborted' && !sessionActive.current) return;
+
+        fatalError = true;
+        sessionActive.current = false;
+        clearRestartTimer();
         setError(errors[event.error] || 'Recording was interrupted. Review your transcript and retry if needed.');
         setListening(false);
       };
+
       current.onend = () => {
         if (recognition.current !== current) return;
         recognition.current = null;
+
+        if (latestSessionTranscript) {
+          accumulated.current = mergeTranscript(baseTranscript, latestSessionTranscript);
+        }
+
+        const elapsed = Date.now() - sessionStartedAt.current;
+        if (sessionActive.current && !fatalError && elapsed < 25000) {
+          // Some mobile browsers stop Web Speech after a pause even with
+          // continuous=true. Restart transparently so the user can keep talking.
+          restartTimer.current = setTimeout(() => {
+            restartTimer.current = null;
+            launchRecognition();
+          }, 120);
+          return;
+        }
+
+        sessionActive.current = false;
         setListening(false);
-        if (!heard && !failed) setError(errors['no-speech']);
+        if (!accumulated.current && !heardThisRun && !fatalError) {
+          setError(errors['no-speech']);
+        }
       };
-      setError(''); setListening(true); current.start();
+
+      setError('');
+      current.start();
     } catch {
-      if (current) { current.onresult = null; current.onerror = null; current.onend = null; }
-      recognition.current = null; setListening(false);
+      if (current) {
+        current.onresult = null; current.onerror = null; current.onend = null;
+      }
+      recognition.current = null;
+      sessionActive.current = false;
+      clearRestartTimer();
+      setListening(false);
       setError('The microphone could not start. Check permission or type your report below.');
     }
   }
 
-  function stop() {
-    try { recognition.current?.stop(); }
-    catch { setListening(false); recognition.current = null; }
+  function start(retry = false) {
+    if (sessionActive.current || recognition.current) return;
+    clearRestartTimer();
+    accumulated.current = retry ? '' : text.trim();
+    if (retry) onText('');
+    sessionStartedAt.current = Date.now();
+    sessionActive.current = true;
+    setError('');
+    setListening(true);
+    launchRecognition();
   }
+
+  function stop() {
+    sessionActive.current = false;
+    clearRestartTimer();
+    setListening(false);
+    const current = recognition.current;
+    if (!current) return;
+    try { current.stop(); }
+    catch {
+      recognition.current = null;
+    }
+  }
+
   return { supported, listening, error, start, stop };
 }
