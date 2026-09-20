@@ -46,8 +46,12 @@ class ProviderTests(unittest.IsolatedAsyncioTestCase):
         def handler(request):
             self.assertEqual(str(request.url), "https://api.sarvam.ai/speech-to-text")
             self.assertEqual(request.headers["api-subscription-key"], "test-sarvam")
-            for value in [b'recording.webm', b'unknown', b'codemix', SARVAM_MODEL.encode(), b'audio-sample']:
+            for value in [b'recording.webm', b'unknown', SARVAM_MODEL.encode(), b'audio-sample']:
                 self.assertIn(value, request.content)
+            if SARVAM_MODEL.startswith("saaras:v3"):
+                self.assertIn(b'codemix', request.content)
+            else:
+                self.assertNotIn(b'codemix', request.content)
             return httpx.Response(200, json={"transcript": TEXT, "language_code": "te-IN", "language_probability": .99})
         result = await SarvamSpeechProvider(httpx.MockTransport(handler)).transcribe(b"audio-sample", "audio/webm;codecs=opus")
         self.assertEqual(result.language_code, "te-IN")
