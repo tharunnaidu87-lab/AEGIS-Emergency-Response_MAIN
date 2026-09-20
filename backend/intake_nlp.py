@@ -153,7 +153,7 @@ def tamil_count_for(text, kind):
         "injured": r"(?:காயமடைந்த(?:ுள்ளனர்|வர்கள்)?|காயம்\s*அடைந்த(?:ுள்ளனர்|வர்கள்)?)",
         "trapped": r"(?:சிக்கிய(?:ுள்ளனர்|வர்கள்)?|சிக்கிக்\s*கொண்ட(?:ுள்ளனர்|வர்கள்)?)",
     }
-    pattern = rf"(?P<number>{TAMIL_NUMBER_EXPR})\s*(?:பேர்|மக்கள்|நபர்கள்?)\s*{suffixes[kind]}"
+    pattern = rf"(?P<number>{TAMIL_NUMBER_EXPR})\s*(?:பேர்|மக்கள்|நபர்கள்?)(?:[^.!?\n]{{0,80}}?)\s*{suffixes[kind]}"
     values = []
     for match in re.finditer(pattern, text):
         value = tamil_number(match.group("number"))
