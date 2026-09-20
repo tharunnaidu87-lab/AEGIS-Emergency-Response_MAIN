@@ -223,6 +223,12 @@ class AegisTests(unittest.TestCase):
         report = self.report()
         assignments = self.dispatch(report)
         before = self.client.get("/reports/" + report["id"]).json()["report"]
+        assignments_before = self.client.get(
+            "/assignments?report_id=" + report["id"]
+        ).json()
+        audit_before = self.client.get(
+            "/audit-events?report_id=" + report["id"]
+        ).json()
         result = self.analyse(report_id=report["id"], hazard_intensity=.95,
                               scenario={"shelter_capacity_factor": 0, "hospital_capacity_factor": 0,
                                         "unavailable_resource_ids": [assignments[0]["resource_id"]], "road_blocked": True})
@@ -231,6 +237,14 @@ class AegisTests(unittest.TestCase):
         self.assertIsNone(result["hospital_plan"]["selected_hospital"])
         self.assertNotIn(assignments[0]["resource_id"], {r["id"] for r in result["resource_plan"]["selected_resources"]})
         self.assertEqual(before, self.client.get("/reports/" + report["id"]).json()["report"])
+        self.assertEqual(
+            assignments_before,
+            self.client.get("/assignments?report_id=" + report["id"]).json(),
+        )
+        self.assertEqual(
+            audit_before,
+            self.client.get("/audit-events?report_id=" + report["id"]).json(),
+        )
 
     def test_prediction_drives_safe_spare_staging(self):
         result = self.analyse()
@@ -246,9 +260,21 @@ class AegisTests(unittest.TestCase):
 
     def test_persistence_reconnect(self):
         report = self.report()
+        assignments = self.dispatch(report)
+        events = self.client.get(
+            "/audit-events?report_id=" + report["id"]
+        ).json()["events"]
         db.init_db()  # Reinitializing does not seed or erase incidents.
         with TestClient(app, headers=dict(self.client.headers)) as second:
             self.assertEqual(second.get("/reports/" + report["id"]).json()["report"]["id"], report["id"])
+            self.assertEqual(
+                second.get("/assignments?report_id=" + report["id"]).json()["assignments"],
+                assignments,
+            )
+            self.assertEqual(
+                second.get("/audit-events?report_id=" + report["id"]).json()["events"],
+                events,
+            )
 
     def test_zero_population_and_fully_closed_shelters(self):
         result = self.analyse(people_affected=0, injured=0, trapped=0, hazard_intensity=0)

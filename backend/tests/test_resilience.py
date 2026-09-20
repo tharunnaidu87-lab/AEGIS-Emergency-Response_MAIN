@@ -49,16 +49,23 @@ class ResilienceTests(unittest.TestCase):
         report = self.client.post('/reports', json=PAYLOAD).json()['report']
         assignments = self.client.post('/reports/' + report['id'] + '/dispatch').json()['assignments']
         own, other = assignments[:2]
+        unassigned_report = self.client.post(
+            '/reports',
+            json={**PAYLOAD, 'location': 'Unassigned incident', 'latitude': 14.5},
+        ).json()['report']
         responder = self.responder(own['resource_id'])
         self.assertEqual(responder.get('/assignments').status_code, 403)
         self.assertEqual(responder.get('/assignments', params={'resource_id': other['resource_id']}).status_code, 403)
         self.assertEqual(responder.get('/assignments', params={'resource_id': own['resource_id']}).status_code, 200)
         self.assertEqual(responder.get('/reports/' + report['id']).status_code, 200)
+        self.assertEqual(responder.get('/reports/' + unassigned_report['id']).status_code, 401)
+        self.assertEqual(responder.get('/resources').status_code, 401)
         self.assertEqual(responder.patch('/assignments/' + other['id'] + '/status', json={'status': 'EN_ROUTE'}).status_code, 403)
         self.assertEqual(responder.patch('/assignments/' + own['id'] + '/status', json={'status': 'ACCEPTED'}).status_code, 200)
         self.assertEqual(responder.post('/assignments/' + own['id'] + '/reassign').status_code, 401)
         self.assertEqual(responder.post('/reports', json=PAYLOAD).status_code, 403)
         self.assertEqual(responder.get('/auth/command/session').status_code, 401)
+        self.assertEqual(self.client.get('/auth/responder/session').status_code, 401)
 
     def test_missing_expired_tampered_and_unicode_sessions(self):
         citizen = self.citizen()
@@ -103,6 +110,25 @@ class ResilienceTests(unittest.TestCase):
             self.assertEqual(response.status_code, 409)
         self.assertEqual(self.client.get('/reports').json()['total'], 0)
         self.assertEqual(self.citizen().post('/reports', content=b'x' * (6 * 1024 * 1024)).status_code, 413)
+
+    def test_release_input_boundaries_do_not_persist_invalid_data(self):
+        tiny = io.BytesIO()
+        Image.new('RGB', (2, 2), 'blue').save(tiny, 'PNG')
+        encoded = base64.b64encode(tiny.getvalue()).decode()
+        self.assertEqual(
+            self.citizen().post('/reports', json={**PAYLOAD, 'photos': [encoded] * 3}).status_code,
+            422,
+        )
+        invalid_signals = [
+            {'client_request_id': 'invalid-coord-0001', 'captured_at': '2026-09-16', 'latitude': 13.1},
+            {'client_request_id': 'invalid-extra-0001', 'captured_at': '2026-09-16', 'unexpected': True},
+            {'client_request_id': 'invalid-voice-0001', 'captured_at': '2026-09-16', 'kind': 'VOICE'},
+        ]
+        for payload in invalid_signals:
+            with self.subTest(payload=payload['client_request_id']):
+                self.assertEqual(self.citizen().post('/distress', json=payload).status_code, 422)
+        self.assertEqual(self.client.get('/reports').json()['total'], 0)
+        self.assertEqual(self.client.get('/distress').json(), [])
 
     def test_known_sos_high_priority_police_only_no_duplicate_mission(self):
         payload = {'client_request_id': 'sos-known-00000001', 'kind': 'SOS', 'captured_at': '2026-09-16T10:00:00Z', 'latitude': 13.13, 'longitude': 80.22, 'accuracy': 15}
