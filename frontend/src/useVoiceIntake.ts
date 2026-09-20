@@ -4,7 +4,7 @@ type SpeechResult = { isFinal: boolean; [index: number]: { transcript: string } 
 type Recognition = {
   continuous: boolean; interimResults: boolean; lang: string;
   start: () => void; stop: () => void; abort: () => void;
-  onresult: ((event: { results: ArrayLike<SpeechResult> }) => void) | null;
+  onresult: ((event: { resultIndex: number; results: ArrayLike<SpeechResult> }) => void) | null;
   onerror: ((event: { error: string }) => void) | null;
   onend: (() => void) | null;
 };
@@ -86,20 +86,24 @@ export function useBrowserVoiceIntake(text: string, onText: (value: string) => v
       if (retry) onText('');
       let heard = false;
       let failed = false;
+      const resultSlots: string[] = [];
       current.onresult = event => {
         if (recognition.current !== current) return;
 
-        let finalTranscript = '';
-        let interimTranscript = '';
-        for (const result of Array.from(event.results)) {
-          const segment = clean(result[0]?.transcript || '');
-          if (!segment) continue;
-          heard = true;
-          if (result.isFinal) finalTranscript = mergeTranscript(finalTranscript, segment);
-          else interimTranscript = mergeTranscript(interimTranscript, segment);
+        for (let index = event.resultIndex; index < event.results.length; index++) {
+          const segment = clean(event.results[index]?.[0]?.transcript || '');
+          resultSlots[index] = segment;
+          heard = heard || Boolean(segment);
         }
 
-        const sessionTranscript = mergeTranscript(finalTranscript, interimTranscript);
+        // Web Speech re-emits earlier hypotheses as they change. Keep one slot per
+        // recognition result and rebuild the transcript from the current slots,
+        // instead of appending every event and multiplying repeated phrases.
+        const sessionTranscript = resultSlots
+          .map(collapseAdjacentDuplicates)
+          .filter(Boolean)
+          .reduce((value, segment) => mergeTranscript(value, segment), '');
+
         onText(mergeTranscript(prefix, sessionTranscript));
       };
       current.onerror = event => {
