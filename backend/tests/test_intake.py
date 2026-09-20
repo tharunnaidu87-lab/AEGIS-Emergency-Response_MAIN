@@ -37,6 +37,34 @@ class ParserTests(unittest.TestCase):
         self.assertIn("Elderly", value.vulnerable_groups)
         self.assertTrue(value.spreading)
 
+    def test_tamil_flood_fallback_extracts_core_emergency_facts(self):
+        text = (
+            "ரிவர்பேங்க் கிராமத்தில் பள்ளி அருகே கடுமையான வெள்ளம் ஏற்பட்டுள்ளது. "
+            "தண்ணீர் வேகமாக உயர்ந்து அருகிலுள்ள வீடுகளுக்கும் தெருக்களுக்கும் புகுகிறது. "
+            "சுமார் 120 பேர் பாதிக்கப்பட்டுள்ளனர், 8 பேர் காயமடைந்துள்ளனர், "
+            "15 பேர் வெள்ளம் சூழ்ந்த கட்டிடங்களில் சிக்கியுள்ளனர். "
+            "குழந்தைகள், முதியவர்கள், மாற்றுத்திறனாளிகள் மற்றும் மருத்துவ உதவி தேவைப்படும் மக்கள் பாதிக்கப்பட்டவர்களில் உள்ளனர். "
+            "பல வீடுகள் கட்டமைப்பு சேதம் அடைந்துள்ளன, மேலும் வெள்ளம் அருகிலுள்ள குடியிருப்பு பகுதிகளுக்கு தொடர்ந்து பரவி வருகிறது."
+        )
+        value = self.parse(text, latitude=13.13, longitude=80.22, gps_verified=True)
+        self.assertEqual(value.incident_type, "Flood")
+        self.assertIn("ரிவர்பேங்க்", value.location)
+        self.assertEqual((value.people_affected, value.injured, value.trapped), (120, 8, 15))
+        for group in ["Children", "Elderly", "Disabled", "Medical dependent"]:
+            self.assertIn(group, value.vulnerable_groups)
+        self.assertTrue(value.spreading)
+        self.assertTrue(value.structural_damage)
+        self.assertEqual(value.language, "Tamil")
+        self.assertGreaterEqual(value.confidence, .75)
+
+    def test_tamil_unknowns_remain_unknown(self):
+        value = self.parse("ரிவர்பேங்க் கிராமத்தில் வெள்ளம் ஏற்பட்டுள்ளது.")
+        self.assertEqual(value.incident_type, "Flood")
+        self.assertIsNone(value.people_affected)
+        self.assertIsNone(value.injured)
+        self.assertIsNone(value.trapped)
+        self.assertIsNone(value.structural_damage)
+
     def test_synonyms_and_landmarks(self):
         for kind, terms in {"Fire": ["burning", "smoke", "flames", "explosion"],
             "Flood": ["water rising", "overflow", "water entering", "submerged"],
