@@ -6,7 +6,7 @@ import { useBrowserVoiceIntake } from './useVoiceIntake';
 const mimeType = 'audio/webm;codecs=opus';
 const fallbackMessage = 'Use browser speech, type your message, or submit the retained recording for review.';
 
-export function useRecordedVoice(onText: (value: string) => void) {
+export function useRecordedVoice(onText: (value: string) => void, browserLanguage?: string) {
   const [phase, setPhase] = useState<'idle' | 'acquiring' | 'listening' | 'processing'>('idle');
   const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState('');
@@ -25,7 +25,7 @@ export function useRecordedVoice(onText: (value: string) => void) {
   useEffect(() => { onTextRef.current = onText; }, [onText]);
   const browser = useBrowserVoiceIntake('', value => {
     setBrowserTranscript(value); setResult(null); onTextRef.current(value);
-  });
+  }, browserLanguage);
   const primarySupported = Boolean(typeof navigator.mediaDevices?.getUserMedia === 'function' &&
     typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(mimeType));
   const listening = phase === 'listening' || browser.listening;
@@ -124,10 +124,10 @@ export function useRecordedVoice(onText: (value: string) => void) {
   }
 
   const metadata: SpeechMetadataInput = result ? { speech_result_id: result.result_id }
-    : browserTranscript ? { browser_transcript: browserTranscript, browser_language: navigator.language || 'en' } : {};
+    : browserTranscript ? { browser_transcript: browserTranscript, browser_language: browserLanguage || navigator.language || 'en' } : {};
   return { supported: primarySupported || browser.supported, listening, processing, phase, seconds,
     error: error || browser.error, notice: fallback ? fallbackMessage : '',
     detectedLanguage: result?.language_code || null,
-    browserLanguage: browserTranscript ? navigator.language : null,
+    browserLanguage: browserTranscript ? (browserLanguage || navigator.language) : null,
     recordedAudio, metadata, start, stop };
 }
