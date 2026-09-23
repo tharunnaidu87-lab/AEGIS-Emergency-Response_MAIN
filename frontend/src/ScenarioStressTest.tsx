@@ -20,7 +20,7 @@ export default function ScenarioStressTest({ report, mode }: { report: SharedRep
         gps_verified: report.gps_verified, spreading: report.spreading, structural_damage: report.structural_damage,
         scenario: mode === "shelter" ? { closed_shelter_ids: [centreId] } : { road_blocked: true },
       }));
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Scenario failed."); }
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Scenario analysis failed."); }
     finally { setBusy(false); }
   }
   return <div className="scenario-stress">
@@ -28,18 +28,18 @@ export default function ScenarioStressTest({ report, mode }: { report: SharedRep
       {centres.map(c => <option key={c.centre_id} value={c.centre_id}>{c.centre_name}</option>)}
     </select></label>}
     <button disabled={busy || (mode === "shelter" && !centreId)} onClick={() => { void run(); }}>
-      {busy ? "RECALCULATING?" : mode === "shelter" ? "RECALCULATE WITH SHELTER CLOSED" : "RECALCULATE ROAD DISRUPTION"}
+      {busy ? "RECALCULATING..." : mode === "shelter" ? "ASSESS SHELTER CLOSURE" : "ASSESS ROAD DISRUPTION"}
     </button>
     {error && <p role="alert" className="form-alert">{error}</p>}
     {result && <div aria-live="polite">
       {mode === "shelter" ? <>
-        <p><b>{result.result.relocation_plan?.total_allocated ?? 0}</b> people allocated ? <b>{result.result.relocation_plan?.unallocated_people ?? 0}</b> unallocated</p>
+        <p><b>{result.result.relocation_plan?.total_allocated ?? 0}</b> people allocated · <b>{result.result.relocation_plan?.unallocated_people ?? 0}</b> unallocated</p>
         {result.result.relocation_plan?.assignments.map(a => <p key={a.centre_id}>{a.centre_name}: {a.people_allocated} allocated, {a.remaining_capacity_after} capacity left</p>)}
       </> : <>
         {result.result.resource_plan.selected_resources.map(r => <p key={r.id}>{r.id}: {r.eta_minutes} min estimated travel with road disruption</p>)}
         <p>Route geometry and alternatives are evaluated on the map. This scenario changes the backend travel cost by 50%.</p>
       </>}
     </div>}
-    <small>Isolated backend scenario ? saved incident and dispatch stay unchanged.</small>
+    <small>Isolated scenario analysis · saved incident and dispatch records remain unchanged.</small>
   </div>;
 }

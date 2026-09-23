@@ -152,30 +152,30 @@ function ChannelPage({ source }: { source: Channel }) {
     value={draft?.location || ''} onChange={e => edit('location', e.target.value || null)} placeholder="Street, landmark or area" /></label>;
 
   return <div className="aegis-shell">
-    <header className="intake-header"><Link to="/report"><strong>AEGIS</strong><small>PUBLIC EMERGENCY INTAKE</small></Link><Link to="/command">COMMAND</Link></header>
+    <header className="intake-header"><Link to="/report"><strong>AEGIS</strong><small>EMERGENCY REPORTING</small></Link><Link to="/command">COMMAND CENTER</Link></header>
     <main className="channel-page">
       <IntakeMethodSelector active={source} />
       {receipt ? <section className="intake-receipt" role="status">
-        <small>SOURCE: {source}</small><h1>Your emergency report is saved.</h1>
-        <p>Report ID: <strong>{receipt}</strong></p><p>Command can now review this incident. No resources were dispatched by voice or text extraction.</p>
+        <small>REPORTING CHANNEL: {source}</small><h1>Your emergency report is saved.</h1>
+        <p>Report ID: <strong>{receipt}</strong></p><p>AEGIS Command can now review this incident. Voice or text interpretation does not dispatch resources.</p>
         <Link className="intake-primary" to={'/track/' + receipt}>TRACK MY REPORT</Link>
         <p className="intake-truth">AEGIS Command receives the report automatically. Keep this report ID for public tracking.</p>
       </section> : <>
         <section className="channel-intro">
           <small>{source === 'CALL' ? 'VOICE / CALL' : 'TEXT / SMS'}</small>
-          <h1>{source === 'CALL' ? 'Voice emergency report' : 'Text emergency report'}</h1>
-          <p>{source === 'CALL' ? 'Speak naturally. Review what AEGIS understood before sending.' : 'Describe the emergency in your own words. AEGIS will prepare the details for you.'}</p>
+          <h1>{source === 'CALL' ? 'Voice Emergency Report' : 'Text Emergency Report'}</h1>
+          <p>{source === 'CALL' ? 'Speak naturally, then review the interpreted details before sending.' : 'Describe the emergency in your own words. AEGIS will structure the details for your review.'}</p>
           <p className="intake-truth">Web reporting prototype. {source === 'CALL' ? 'Telephone calls' : 'SMS gateway'}: not connected to a telecom provider.</p>
         </section>
         <section className="deferred-voice">
-          {(voice.recordedAudio || text.trim()) && <><p>Need to send before interpretation finishes? Save the original message for Command review. No normal incident dispatch is automatic.</p><button disabled={sending || voice.listening || voice.processing} onClick={() => void sendDeferred()}>SEND ORIGINAL FOR REVIEW</button></>}
+          {(voice.recordedAudio || text.trim()) && <><p>Need to submit before interpretation finishes? Save the original message for Command review. This does not automatically dispatch resources.</p><button disabled={sending || voice.listening || voice.processing} onClick={() => void sendDeferred()}>SUBMIT ORIGINAL FOR REVIEW</button></>}
           {voice.recordedAudio && <p>Recording retained in this browser; it is sent only when you submit it.</p>}
           {sendError && <p role="alert">{sendError}</p>}
         </section><div className="channel-grid">
           <section className="intake-compose">
             <h2><span>01</span> {source === 'CALL' ? 'Tell us what happened' : 'Write your message'}</h2>
             {source === 'CALL' && <div className="voice-controls">
-              <small>AUTO-DETECT LANGUAGE</small>
+              <small>LANGUAGE DETECTION</small>
               <label>Browser fallback language
                 <select aria-label="Browser fallback language" value={browserSpeechLanguage}
                   disabled={voice.listening || voice.processing || sending}
@@ -206,11 +206,11 @@ function ChannelPage({ source }: { source: Channel }) {
                 ? 'There is a fire near the college hostel. Twenty people are inside and two are injured.'
                 : 'Flood near Anna Nagar bridge. Water is increasing quickly. Around thirty people are trapped.'} />
             <div className="intake-text-footer"><small>{text.length} / 5000 characters</small><small>Review names, numbers and location before confirming.</small></div>
-            {source === 'CALL' && <button className="intake-primary" disabled={!text.trim() || voice.listening || voice.processing || sending || parseState === 'parsing'} onClick={analyzeCall}>ANALYZE EMERGENCY</button>}
+            {source === 'CALL' && <button className="intake-primary" disabled={!text.trim() || voice.listening || voice.processing || sending || parseState === 'parsing'} onClick={analyzeCall}>ANALYZE REPORT</button>}
             <div className="intake-parse-status" role="status">
               {voice.listening ? 'Listening. Nothing will be sent until you stop and confirm.' :
-                parseState === 'parsing' ? slow ? 'AEGIS may be waking up. Keep this page open; your text is safe.' : 'AEGIS is understanding your message...' :
-                parseState === 'waiting' ? source === 'CALL' ? 'Review your transcript, then press ANALYZE EMERGENCY.' : 'Preparing your message...' : parseState === 'ready' ? 'Details ready. Please review them before sending.' :
+                parseState === 'parsing' ? slow ? 'Analysis is taking longer than expected. Keep this page open; your text is retained.' : 'Analyzing your message...' :
+                parseState === 'waiting' ? source === 'CALL' ? 'Review your transcript, then select ANALYZE REPORT.' : 'Preparing your report...' : parseState === 'ready' ? 'Report details are ready for review.' :
                 parseState === 'error' ? 'AEGIS could not process the message. Your text is kept. Check your connection or retry while the backend wakes up.' :
                 'Start with what happened and where. Unknown details can stay blank.'}
               {parseState === 'error' && <button onClick={() => setRetry(value => value + 1)}>RETRY ANALYSIS</button>}
@@ -228,8 +228,8 @@ function ChannelPage({ source }: { source: Channel }) {
             </section>
             <details className="intake-contact"><summary>Contact number (optional)</summary><label>Phone<input type="tel" maxLength={40} value={phone} onChange={e => setPhone(e.target.value)} /></label></details>
           </section>
-          <section className="intake-review" aria-label="AEGIS understood">
-            <h2><span>02</span> AEGIS UNDERSTOOD</h2>
+          <section className="intake-review" aria-label="Review report details">
+            <h2><span>02</span> REVIEW REPORT DETAILS</h2>
             {!draft ? <p className="intake-empty">Your interpreted report will appear here. Nothing is submitted automatically.</p> : <>
               <dl className="intake-summary">
                 <div><dt>Incident</dt><dd>{draft.incident_type || 'Unknown - please choose'}</dd></div>
@@ -266,7 +266,7 @@ function ChannelPage({ source }: { source: Channel }) {
               {countInvalid && <p className="intake-notice" role="alert">Use whole, nonnegative counts. Injured and trapped people cannot each exceed the affected total.</p>}
               <details className="intake-defaults"><summary>How unknown details are handled</summary><p>Unknown counts are kept as unknown in the intake record. Existing analysis uses zero for unstated injured/trapped counts, and at least the known injured/trapped count if the total is unknown. Unknown flags use false as an analysis default. This does not mean the danger is absent.</p></details>
               <p>Review the details, then confirm. Dispatch remains a Command decision.</p>
-              <button className="intake-primary intake-send" disabled={!canSend} onClick={() => void send()}>{sending ? 'SENDING YOUR REPORT...' : 'SEND EMERGENCY REPORT'}</button>
+              <button className="intake-primary intake-send" disabled={!canSend} onClick={() => void send()}>{sending ? 'SENDING YOUR REPORT...' : 'REPORT EMERGENCY'}</button>
               {!valid && <p className="intake-notice">Add GPS or valid incident coordinates before sending.</p>}
             </>}
             {sendError && <p className="intake-notice" role="alert">{sendError}</p>}

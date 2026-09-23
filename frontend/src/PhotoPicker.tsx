@@ -27,8 +27,8 @@ export default function PhotoPicker({ photos, onChange }: { photos: string[]; on
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'This photo could not be opened. Choose another.'); }
     finally { setBusy(false); }
   }
-  return <section className="photo-picker"><h2>Upload photo <small>optional</small></h2><p>Up to two photos. Images are resized and location metadata is removed.</p>
-    <label>Choose from gallery or files<input type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={busy || photos.length >= 2} onChange={e => { void select(e.target.files); e.target.value = ''; }} /></label>
+  return <section className="photo-picker"><h2>Add incident photos <small>optional</small></h2><p>Add up to two photos. Images are resized and location metadata is removed.</p>
+    <label>Choose photos from gallery or files<input type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={busy || photos.length >= 2} onChange={e => { void select(e.target.files); e.target.value = ''; }} /></label>
     <label>Take a photo<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" disabled={busy || photos.length >= 2} onChange={e => { void select(e.target.files); e.target.value = ''; }} /></label>
     <div className="photo-previews">{photos.map((photo, index) => <figure key={index}><img src={'data:image/jpeg;base64,' + photo} alt={'Selected emergency photo ' + (index + 1)} /><button onClick={() => onChange(photos.filter((_, i) => i !== index))}>Remove photo {index + 1}</button></figure>)}</div>
     {busy && <p role="status">Preparing photo…</p>}{error && <p role="alert">{error}</p>}

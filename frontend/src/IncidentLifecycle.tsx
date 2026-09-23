@@ -187,7 +187,7 @@ export default function IncidentLifecycle({
           ? "incident-lifecycle compact"
           : "incident-lifecycle"
       }
-      aria-label="Emergency response lifecycle"
+      aria-label="Incident response lifecycle"
     >
 
       <div className="lifecycle-heading">
@@ -197,8 +197,8 @@ export default function IncidentLifecycle({
           <small>
 
             {audience === "COMMAND"
-              ? "AEGIS OPERATIONAL LIFECYCLE"
-              : "RESPONDER MISSION LIFECYCLE"}
+              ? "INCIDENT RESPONSE LIFECYCLE"
+              : "FIELD RESPONSE LIFECYCLE"}
 
           </small>
 

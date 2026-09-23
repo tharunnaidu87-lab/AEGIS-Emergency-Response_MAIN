@@ -22,5 +22,5 @@ export default function ReportPhotos({ reportId }: { reportId: string }) {
     return () => { active = false; controller.abort(); urls.forEach(url => URL.revokeObjectURL(url)); };
   }, [reportId]);
   if (!photos.length) return null;
-  return <details className="photo-picker"><summary>Citizen supporting photos · unverified evidence</summary><div className="photo-previews">{photos.map((url, i) => <figure key={url}><a href={url} target="_blank" rel="noreferrer"><img src={url} alt={'Citizen supplied incident photo ' + (i + 1)} /></a></figure>)}</div></details>;
+  return <details className="photo-picker"><summary>Reporter photos · unverified supporting evidence</summary><div className="photo-previews">{photos.map((url, i) => <figure key={url}><a href={url} target="_blank" rel="noreferrer"><img src={url} alt={'Reporter supplied incident photo ' + (i + 1)} /></a></figure>)}</div></details>;
 }

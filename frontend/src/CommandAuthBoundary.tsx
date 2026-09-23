@@ -777,8 +777,8 @@ export default function CommandAuthBoundary({
           <small>
 
             {responder
-              ? "AEGIS // RESPONDER ACCESS"
-              : "AEGIS // AUTHORITY ACCESS"}
+              ? "AEGIS // RESPONDER PORTAL"
+              : "AEGIS // COMMAND CENTER"}
 
           </small>
 
@@ -786,8 +786,8 @@ export default function CommandAuthBoundary({
           <h1>
 
             {responder
-              ? "Responder Login"
-              : "Command Center Login"}
+              ? "Responder Sign In"
+              : "Command Center Sign In"}
 
           </h1>
 
@@ -795,8 +795,8 @@ export default function CommandAuthBoundary({
           <p>
 
             {responder
-              ? "Sign in with a DEMO responder unit ID assigned inside AEGIS."
-              : "Authorized AEGIS Command personnel only."}
+              ? "Use a demonstration responder unit ID assigned in AEGIS."
+              : "Access is restricted to authorized AEGIS Command personnel."}
 
           </p>
 
@@ -889,8 +889,8 @@ export default function CommandAuthBoundary({
               {submitting
                 ? "VERIFYING..."
                 : responder
-                  ? "ENTER RESPONDER"
-                  : "ENTER COMMAND CENTER"}
+                  ? "OPEN RESPONDER PORTAL"
+                  : "OPEN COMMAND CENTER"}
 
             </button>
 
@@ -971,8 +971,8 @@ export default function CommandAuthBoundary({
       >
 
         {responder
-          ? "RESPONDER LOGOUT"
-          : "COMMAND LOGOUT"}
+          ? "RESPONDER SIGN OUT"
+          : "COMMAND SIGN OUT"}
 
       </button>
 

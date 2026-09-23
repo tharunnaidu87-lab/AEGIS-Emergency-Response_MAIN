@@ -253,11 +253,11 @@ export default function OperationalMap({ report, assignments, routeSets, routing
 
   const progress = selectedPlan?.route ? movementProgress(selectedPlan.assignment, selectedPlan.route, tick) : 0;
   const eta = selectedPlan?.route ? Math.ceil(selectedPlan.route.duration * (1 - progress) / 60) : selectedUnit?.eta_minutes;
-  return <section className="operation-map" aria-label="Operational map">
+  return <section className="operation-map" aria-label="Geospatial operational overview">
     <div className="vector-map-shell">
       <div ref={container} className="vector-operational-map" style={{ minHeight: compact ? 340 : 460 }} />
-      <div className="vector-map-actions"><button onClick={fitOperation}>FIT OPERATION</button></div>
-      <div className="map-legend"><span>! INCIDENT</span><span className="danger">CURRENT DANGER</span><span className="future">DASHED: FUTURE RISK</span><span>H HOSPITAL | S SHELTER | P STAGING</span></div>
+      <div className="vector-map-actions"><button onClick={fitOperation}>FIT OPERATIONAL AREA</button></div>
+      <div className="map-legend"><span>! INCIDENT</span><span className="danger">CURRENT HAZARD</span><span className="future">DASHED: PROJECTED RISK</span><span>H HOSPITAL | S SHELTER | P STAGING</span></div>
       {mapError && <p className="map-service-note" role="status">{mapError}</p>}
     </div>
     <div className="route-status-panel">
@@ -272,7 +272,7 @@ export default function OperationalMap({ report, assignments, routeSets, routing
         <span>{eta === undefined ? "ETA pending" : eta + " MIN REMAINING"} | {Math.round(progress * 100)}% SIMULATED JOURNEY</span>
       </div>}
       <p>{selectedPlan?.assessment.reason || "Dispatch resources to calculate routes."}</p>
-      {movementStarted && <small>Road scenario is fixed for this simulated journey. Use What-If to compare a new road disruption.</small>}
+      {movementStarted && <small>The route scenario is fixed for this simulated journey. Use Scenario Analysis to compare a new road disruption.</small>}
       {selectedUnit?.resource_type === "RESCUE_BOAT" && <small>Driving route represents boat transport to the incident, not water navigation.</small>}
       {syncError && <p className="form-alert" role="alert">{syncError}</p>}
     </div>

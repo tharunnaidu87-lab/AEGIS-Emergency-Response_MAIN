@@ -474,7 +474,7 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
         try {
             const result = await reassignAssignment(assignment.id, "UNIT_ISSUE");
             if (result.replacement_assignment) {
-                setActionMessage(`${result.original_assignment.resource_id} → ${result.replacement_assignment.resource_id} reassignment stored in SQLite.`);
+                setActionMessage(`${result.original_assignment.resource_id} → ${result.replacement_assignment.resource_id} reassignment recorded.`);
             }
             else {
                 setActionMessage("Reassignment request completed without a new replacement record.");
@@ -551,7 +551,7 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
     const commandChecklist = [
         {
             id: "VERIFY",
-            label: "Verify incident intelligence",
+            label: "Verify incident assessment",
             detail: selected.gps_verified
                 ? "GPS evidence verified."
                 : "Confirm location and available evidence.",
@@ -600,8 +600,8 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
             : []),
         {
             id: "MONITOR",
-            label: "Continue predictive monitoring",
-            detail: "Watch route hazards, zone stress and resource demand.",
+            label: "Continue projection monitoring",
+            detail: "Monitor route hazards, zone exposure, and projected resource demand.",
             required: false,
         },
     ];
@@ -621,10 +621,10 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
       <div className="unified-module-heading">
         <div>
           <span className="truth-badge real">
-            INTEGRATED COMMAND WORKSPACE
+            UNIFIED EMERGENCY OPERATIONS
           </span>
 
-          <h2>{view.replace("_", " ")}</h2>
+          <h2>{view === "INTELLIGENCE" ? "INCIDENT ASSESSMENT" : view === "FIELD_OPS" ? "FIELD RESPONSE OPERATIONS" : view === "PREDICTIVE" ? "RISK PROJECTIONS" : view === "COORDINATION" ? "RESPONSE COORDINATION" : "AUDIT RECORD"}</h2>
 
           <p>
             {selected.incident_type}
@@ -637,7 +637,7 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
 
         <div className="unified-module-status">
           <strong>{selectedPriority}/100</strong>
-          <small>DYNAMIC PRIORITY</small>
+          <small>INCIDENT PRIORITY</small>
         </div>
       </div>
 
@@ -650,7 +650,7 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
           </div>
 
           <div className="unified-two-column">
-            <ModulePanel title="PERSISTENT INCIDENT FUSION" truth="SQLITE fusion_id">
+            <ModulePanel title="INCIDENT FUSION RECORD" truth="DATABASE FUSION GROUP">
               <Metric label="FUSION ID" value={selected.fusion_id}/>
               <Metric label="SOURCES" value={Array.from(new Set(group.map(report => report.source))).join(" + ")}/>
               <Metric label="RELATED REPORTS" value={String(group.length)}/>
@@ -666,7 +666,7 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
               </div>
             </ModulePanel>
 
-            <ModulePanel title="GLOBAL PRIORITY QUEUE" truth="SEVERITY + AGE + EXPOSURE">
+            <ModulePanel title="INCIDENT PRIORITY QUEUE" truth="SEVERITY + AGE + EXPOSURE">
               {priorityQueue.slice(0, 8).map((item, index) => (<button key={item.report.id} type="button" className={item.report.id === selected.id
                     ? "unified-priority-row selected"
                     : "unified-priority-row"} disabled>
@@ -689,7 +689,7 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
           </div>
 
           <div className="unified-two-column">
-            <ModulePanel title="NEXT-RISK-ZONE FORECAST" truth="RULE-BASED PREDICTION">
+            <ModulePanel title="PROJECTED ZONE RISK" truth="RULE-BASED PROJECTION">
               {zones.length > 0 ? zones.slice(0, 6).map(zone => (<div className="unified-zone-row" key={zone.id}>
                   <div>
                     <strong>{zone.name}</strong>
@@ -700,12 +700,12 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
                   <span className={`zone-tone ${zone.forecastLevel.toLowerCase()}`}>
                     {zone.currentScore} → {zone.forecastScore}
                   </span>
-                </div>)) : (<Empty>No habitation forecast available.</Empty>)}
+                </div>)) : (<Empty>No habitation projection is available.</Empty>)}
 
               <BackendIntelligence result={selected.analysis.result} />
             </ModulePanel>
 
-            <ModulePanel title="CASCADING-RISK WATCH" truth="RULE-BASED">
+            <ModulePanel title="CASCADING RISK ASSESSMENT" truth="RULE-BASED">
               {cascade.map((alert, index) => (<AlertBox key={`${alert.title}-${index}`} level={alert.level} title={alert.title}>
                   {alert.detail}
                 </AlertBox>))}
@@ -722,7 +722,7 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
           </div>
 
           <div className="unified-two-column">
-            <ModulePanel title="RESOURCE AVAILABILITY" truth="LIVE ASSIGNMENT STATE">
+            <ModulePanel title="RESOURCE AVAILABILITY" truth="CURRENT ASSIGNMENT STATE">
               {resourceStates.length > 0 ? resourceStates.map(resource => (<Metric key={resource.id} label={`${resource.id} / ${resource.capability}`} value={resource.state} tone={resource.state === "AVAILABLE"
                     ? "good"
                     : resource.state === "ISSUE"
@@ -730,7 +730,7 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
                         : "normal"}/>)) : (<Empty>No resource pool observed yet.</Empty>)}
             </ModulePanel>
 
-            <ModulePanel title="RESOURCE SHORTAGE + BACKUP" truth="REQUIRED VS ACTIVE">
+            <ModulePanel title="RESOURCE GAPS AND BACKUP" truth="REQUIRED VS ACTIVE">
               {shortages.length > 0 ? shortages.map(row => (<div className="unified-shortage-row" key={row.capability}>
                   <Metric label={row.capability} value={`${row.active}/${row.required} ACTIVE`} tone={row.shortage > 0 ? "danger" : "good"}/>
                   <Metric label="SHORTAGE" value={String(row.shortage)} tone={row.shortage > 0 ? "danger" : "good"}/>
@@ -748,7 +748,7 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
           </div>
 
           <div className="unified-two-column">
-            <ModulePanel title="LIVE ISSUE QUEUE / REAL REASSIGNMENT" truth="BACKEND SUPPORTED">
+            <ModulePanel title="UNIT ISSUE QUEUE / REASSIGNMENT" truth="RECORDED COMMAND ACTION">
               {unresolvedIssues.length > 0 ? unresolvedIssues.map(assignment => {
                 const report = reports.find(item => item.id === assignment.report_id);
                 return (<div className="unified-issue-card" key={assignment.id}>
@@ -798,14 +798,14 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
 
       {view === "PREDICTIVE" && (<>
           <div className="unified-stat-grid">
-            <Stat label="MAX FORECAST" value={topZone ? String(topZone.forecastScore) : "—"}/>
-            <Stat label="PREDICTED RED" value={String(zones.filter(zone => zone.forecastLevel === "RED").length)}/>
+            <Stat label="MAX PROJECTION" value={topZone ? String(topZone.forecastScore) : "—"}/>
+            <Stat label="PROJECTED RED" value={String(zones.filter(zone => zone.forecastLevel === "RED").length)}/>
             <Stat label="RELOCATION" value={String(selected.analysis.result.people_requiring_relocation)}/>
             <Stat label="ROUTE STRESS" value={String(selectedAssignments.length)}/>
           </div>
 
           <div className="unified-two-column">
-            <ModulePanel title="PREDICTIVE ZONE STRESS" truth="RULE-BASED FORECAST">
+            <ModulePanel title="PROJECTED ZONE EXPOSURE" truth="RULE-BASED PROJECTION">
               {zones.length > 0 ? zones.map(zone => (<div className="unified-zone-row" key={zone.id}>
                   <div>
                     <strong>{zone.name}</strong>
@@ -817,21 +817,21 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
                 </div>)) : (<Empty>No habitation risk data available.</Empty>)}
             </ModulePanel>
 
-            <ModulePanel title="FUTURE RESOURCE DEMAND" truth="DECISION SUPPORT">
+            <ModulePanel title="PROJECTED RESOURCE DEMAND" truth="DECISION SUPPORT">
               {demandForecast.length > 0 ? demandForecast.map(item => (<div className="unified-shortage-row" key={item.capability}>
                   <Metric label={item.capability} value={`${item.active} ACTIVE`}/>
                   <Metric label="CURRENT → FORECAST" value={`${item.required} → ${item.predictedRequired}`}/>
-                  <Metric label="PREDICTED GAP" value={String(item.predictedGap)} tone={item.predictedGap > 0 ? "danger" : "good"}/>
-                </div>)) : (<Empty>No resource demand forecast available.</Empty>)}
+                  <Metric label="PROJECTED GAP" value={String(item.predictedGap)} tone={item.predictedGap > 0 ? "danger" : "good"}/>
+                </div>)) : (<Empty>No resource-demand projection is available.</Empty>)}
             </ModulePanel>
           </div>
 
           <div className="unified-two-column">
-            <ModulePanel title="SHELTER FAILURE WHAT-IF" truth="SIMULATION ONLY">
+            <ModulePanel title="SHELTER CLOSURE SCENARIO" truth="SIMULATION ONLY">
               <ScenarioStressTest key={selected.id+"shelter"} report={selected} mode="shelter" />
             </ModulePanel>
 
-            <ModulePanel title="ROUTE FAILURE WHAT-IF" truth="SIMULATED IMPACT">
+            <ModulePanel title="ROAD DISRUPTION SCENARIO" truth="SIMULATED IMPACT">
               <ScenarioStressTest key={selected.id+"road"} report={selected} mode="road" />
             </ModulePanel>
           </div>
@@ -845,7 +845,7 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
             <Stat label="DELAYED" value={String(stress.delayed)}/>
           </div>
 
-          <ModulePanel title="INCIDENT COMPARISON MATRIX" truth="PERSISTED DEMO INCIDENTS">
+          <ModulePanel title="INCIDENT PRIORITY COMPARISON" truth="SAVED DEMO INCIDENTS">
             <div className="unified-table-wrap">
               <table className="unified-command-table">
                 <thead>
@@ -889,7 +889,7 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
           </ModulePanel>
 
           <div className="unified-two-column">
-            <ModulePanel title="AGING + PRIORITY ESCALATION" truth="PROTOTYPE SLA WATCH">
+            <ModulePanel title="INCIDENT AGE AND ESCALATION" truth="PROTOTYPE RESPONSE-TIME WATCH">
               {priorityQueue.slice(0, 8).map((item, index) => {
                 const age = ageMinutes(item.report.created_at);
                 const state = age >= 45
@@ -913,7 +913,7 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
             })}
             </ModulePanel>
 
-            <ModulePanel title="MULTI-INCIDENT RESOURCE CONFLICT" truth="CROSS-INCIDENT LOAD">
+            <ModulePanel title="MULTI-INCIDENT RESOURCE DEMAND" truth="CROSS-INCIDENT LOAD">
               {conflicts.length > 0 ? conflicts.map(conflict => (<div className="unified-shortage-row" key={conflict.capability}>
                   <Metric label={conflict.capability} value={`${conflict.active}/${conflict.required} ACTIVE`}/>
                   <Metric label="INCIDENTS DEMANDING" value={String(conflict.incidents)}/>
@@ -923,7 +923,7 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
           </div>
 
           <div className="unified-two-column">
-            <ModulePanel title="SYSTEM STRESS + MUTUAL AID" truth="DECISION SUPPORT">
+            <ModulePanel title="COORDINATION LOAD / MUTUAL AID" truth="DECISION SUPPORT">
               <Metric label="SYSTEM INDEX" value={`${stress.score}/100 · ${stress.level}`}/>
               <Metric label="SEVERE INCIDENTS" value={String(stress.severe)}/>
               <Metric label="RED-ZONE INCIDENTS" value={String(stress.red)}/>
@@ -973,7 +973,7 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
             })}
             </ModulePanel>
 
-            <ModulePanel title="LIVE COMMAND / HANDOVER BRIEF" truth="DETERMINISTIC SUMMARY">
+            <ModulePanel title="COMMAND HANDOVER BRIEF" truth="RULE-BASED SUMMARY">
               <BriefRow label="SITUATION" value={`${stress.active} active incident(s), ${stress.severe} high-severity, ${stress.red} with RED habitation risk.`}/>
               <BriefRow label="TOP PRIORITY" value={priorityQueue[0]
                 ? `${priorityQueue[0].report.incident_type} at ${priorityQueue[0].report.location} · ${priorityQueue[0].priority}/100.`
@@ -992,11 +992,11 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
             <Stat label="FUSION ID" value={selected.fusion_id.slice(-8)}/>
             <Stat label="EVENTS" value={String(auditEvents.length)}/>
             <Stat label="RESOLVED" value={String(resolved.length)}/>
-            <Stat label="DB LINK" value={auditOnline ? "ONLINE" : "OFFLINE"}/>
+            <Stat label="AUDIT DATA" value={auditOnline ? "AVAILABLE" : "UNAVAILABLE"}/>
           </div>
 
           <div className="unified-two-column">
-            <ModulePanel title="PERSISTENT AUDIT TIMELINE" truth="SQLITE audit_events">
+            <ModulePanel title="AUDIT EVENT TIMELINE" truth="DATABASE RECORD">
               {auditEvents.length > 0 ? auditEvents.map(event => (<div className="audit-event-row" key={event.id}>
                   <small>{timeLabel(event.created_at)}</small>
                   <i />
@@ -1010,7 +1010,7 @@ function UnifiedCommandModules({ view, selected, reports, assignments, onRefresh
                     : ""}
                     </small>
                   </div>
-                </div>)) : (<Empty>No persistent audit events for this fusion group yet.</Empty>)}
+                </div>)) : (<Empty>No audit events are recorded for this fusion group yet.</Empty>)}
             </ModulePanel>
 
             <ModulePanel title="FUSION HISTORY" truth="PERSISTENT REPORT GROUP">

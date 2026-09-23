@@ -23,7 +23,7 @@ export function OutboxStatus() {
   }, []);
   const pending = items.filter(i => i.state !== 'sent');
   return <aside className="delivery-status" aria-label="Report delivery">
-    <strong>DEMO — no real emergency services connected</strong>
+    <strong>DEMONSTRATION — not connected to emergency services</strong>
     {(!online || pending.length > 0 || error) && <p role="status">{error || `${online ? 'Connection available' : 'OFFLINE'} · ${pending.length} saved report(s) awaiting delivery`}</p>}
     {pending.map(item => <a key={item.id} href={'/queued/' + item.id}>Open saved {item.path === '/distress' ? 'signal' : 'report'} · {item.created.slice(11, 16)}</a>)}
     {!!pending.length && <button onClick={() => void syncOutbox(true)}>Retry delivery</button>}
@@ -60,8 +60,8 @@ export function QueuedReceipt() {
     return () => { active = false; clearInterval(timer); };
   }, [localId]);
   return <main className="receipt-page"><Link to="/report">AEGIS · Reporter</Link>
-    <h1>{item?.state === 'sent' ? 'REPORT SYNCHRONIZED' : item ? 'REPORT SAVED ON THIS DEVICE' : 'Opening receipt…'}</h1>
-    <p role="status">{item?.state === 'sent' ? 'AEGIS Command has received this report. All response activity is simulated.' : 'Delivery is not confirmed. Keep this browser data; AEGIS will retry when connected.'}</p>
+    <h1>{item?.state === 'sent' ? 'REPORT DELIVERED' : item ? 'REPORT SAVED ON THIS DEVICE' : 'Opening receipt…'}</h1>
+    <p role="status">{item?.state === 'sent' ? 'AEGIS Command has received this report. All response activity is simulated.' : 'Delivery is not confirmed. Keep this browser open; AEGIS will retry when connected.'}</p>
     <p>{signalStatus}</p><p>Local receipt: {localId}</p><p>{item?.message}</p><p role="status">{error}</p>
     {(item?.receipt?.report?.id || reportId) && <Link className="intake-primary" to={'/track/' + (item?.receipt?.report?.id || reportId)}>TRACK MY REPORT</Link>}
     {item?.state !== 'sent' && <button onClick={() => void syncOutbox(true)}>Retry delivery</button>}
@@ -87,7 +87,7 @@ export function SosButton() {
     navigator.geolocation?.getCurrentPosition(p => setGps({ latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy: p.coords.accuracy }), () => {}, { timeout: 2500, maximumAge: 30000 });
   }
   return <section className="sos-section" aria-label="Emergency SOS">
-    <div><h2>Need immediate help?</h2><p>No description needed. SOS sends a high-priority signal to this AEGIS demo.</p><p>Location is optional. A known location enables the nearest available demo police mission.</p></div>
+    <div><h2>Need immediate help?</h2><p>No description is required. SOS sends a high-priority signal to this AEGIS demonstration.</p><p>Location is optional. A known location enables assignment of the nearest available simulated police unit.</p></div>
     <div className="sos-control"><button className="sos-button" disabled={seconds !== null || saving} onClick={activate} aria-label="Activate SOS">SOS</button>
       {seconds !== null && <><p role="status" aria-live="assertive">SOS ACTIVATING · {seconds}</p><button className="sos-cancel" onClick={() => setSeconds(null)}>CANCEL SOS</button></>}
       {saving && <p role="status">Saving signal…</p>}{error && <p role="alert">{error}</p>}

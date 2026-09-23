@@ -48,11 +48,11 @@ const COMMAND_VIEWS: Array<{
     label: string;
 }> = [
     { id: "OVERVIEW", code: "01", label: "OVERVIEW" },
-    { id: "INTELLIGENCE", code: "02", label: "INTELLIGENCE" },
+    { id: "INTELLIGENCE", code: "02", label: "ASSESSMENT" },
     { id: "FIELD_OPS", code: "03", label: "FIELD OPS" },
-    { id: "PREDICTIVE", code: "04", label: "PREDICTIVE" },
+    { id: "PREDICTIVE", code: "04", label: "PROJECTIONS" },
     { id: "COORDINATION", code: "05", label: "COORDINATION" },
-    { id: "WHAT_IF", code: "06", label: "WHAT-IF" },
+    { id: "WHAT_IF", code: "06", label: "SCENARIOS" },
     { id: "RELOCATION", code: "07", label: "RELOCATION" },
     { id: "AUDIT", code: "08", label: "AUDIT" },
 ];
@@ -130,7 +130,7 @@ function PublicHeader() {
           </strong>
 
           <small>
-            PUBLIC EMERGENCY INTAKE
+            EMERGENCY REPORTING
           </small>
 
         </span>
@@ -145,7 +145,7 @@ function PublicHeader() {
 
       <span className="demo-node">
         <i />
-        EMERGENCY REPORTING
+        PUBLIC REPORTING DEMO
       </span>
 
     </nav>);
@@ -169,7 +169,7 @@ function CommandHeader() {
           </strong>
 
           <small>
-            UNIFIED EMERGENCY COMMAND
+            UNIFIED EMERGENCY OPERATIONS
           </small>
 
         </span>
@@ -184,7 +184,7 @@ function CommandHeader() {
 
       <span className="demo-node">
         <i />
-        COMMAND PROTOTYPE
+        COMMAND CENTER DEMO
       </span>
 
     </nav>);
@@ -210,7 +210,7 @@ function ResponderHeader({ unitId, }: {
           </strong>
 
           <small>
-            RESPONDER OPERATIONS
+            FIELD RESPONSE OPERATIONS
           </small>
 
         </span>
@@ -225,7 +225,7 @@ function ResponderHeader({ unitId, }: {
 
       <span className="demo-node">
         <i />
-        FIELD DEMO
+        RESPONDER DEMO
       </span>
 
     </nav>);
@@ -606,15 +606,15 @@ function ReportPage() {
 
 
           <h1>
-            Tell us what's happening.
+            Report an emergency.
           </h1>
 
 
           <p>
-            Report what you know.
-            AEGIS will analyse the
-            emergency and forward it
-            to the local command demonstration.
+            Share what happened, who is at risk,
+            and where help is needed. AEGIS will
+            assess the report for this local
+            command demonstration.
           </p>
 
         </section>
@@ -622,7 +622,7 @@ function ReportPage() {
 
         <PhotoPicker photos={photos} onChange={setPhotos} />
         <section className="report-board">
-          <button className="demo-fill" type="button" onClick={() => { setIncidentType("Flood"); setLocation("Riverbank Village, Chennai"); setLatitude("13.1300"); setLongitude("80.2200"); setPeople(18); setInjured(3); setTrapped(4); setHazardIntensity(0.8); setDescription("Flood water is entering riverbank homes. People are trapped and water is spreading toward nearby streets."); setSpreading(true); setVulnerableGroups(["Children", "Elderly"]); setGpsVerified(false); }}>FILL FLOOD DEMO SCENARIO</button>
+          <button className="demo-fill" type="button" onClick={() => { setIncidentType("Flood"); setLocation("Riverbank Village, Chennai"); setLatitude("13.1300"); setLongitude("80.2200"); setPeople(18); setInjured(3); setTrapped(4); setHazardIntensity(0.8); setDescription("Flood water is entering riverbank homes. People are trapped and water is spreading toward nearby streets."); setSpreading(true); setVulnerableGroups(["Children", "Elderly"]); setGpsVerified(false); }}>LOAD FLOOD DEMO</button>
 
 
           <div className="report-step">
@@ -635,7 +635,7 @@ function ReportPage() {
             <div>
 
               <small>
-                INCIDENT
+                INCIDENT TYPE
               </small>
 
               <h2>
@@ -682,11 +682,11 @@ function ReportPage() {
             <div>
 
               <small>
-                PEOPLE
+                PEOPLE AT RISK
               </small>
 
               <h2>
-                Who is at risk?
+                Who needs help?
               </h2>
 
             </div>
@@ -718,7 +718,7 @@ function ReportPage() {
           </div>
 
 
-          <div className="form-grid"><label>People injured<input aria-label="People injured" type="number" min="0" max={people} value={injured} onChange={e => setInjured(Math.max(0, Number(e.target.value)))} /></label><label>People trapped<input aria-label="People trapped" type="number" min="0" max={people} value={trapped} onChange={e => setTrapped(Math.max(0, Number(e.target.value)))} /></label></div>
+          <div className="form-grid"><label>Injured people<input aria-label="Injured people" type="number" min="0" max={people} value={injured} onChange={e => setInjured(Math.max(0, Number(e.target.value)))} /></label><label>Trapped people<input aria-label="Trapped people" type="number" min="0" max={people} value={trapped} onChange={e => setTrapped(Math.max(0, Number(e.target.value)))} /></label></div>
 <div className="chip-grid">
 
             {[
@@ -749,7 +749,7 @@ function ReportPage() {
               </small>
 
               <h2>
-                Where is it?
+                Where is the emergency?
               </h2>
 
             </div>
@@ -760,7 +760,7 @@ function ReportPage() {
           <button type="button" className="gps-button" onClick={useGps}>
 
             <span>
-              USE DEVICE LOCATION
+              USE CURRENT LOCATION
             </span>
 
 
@@ -777,7 +777,7 @@ function ReportPage() {
 
           <label className="full-field">
 
-            Location / landmark
+            Location or landmark
 
             <input value={location} placeholder="Road, bridge, village, building..." onChange={event => setLocation(event.target.value)}/>
 
@@ -816,11 +816,11 @@ function ReportPage() {
             <div>
 
               <small>
-                DETAILS
+                INCIDENT DETAILS
               </small>
 
               <h2>
-                What can you see?
+                What is happening?
               </h2>
 
             </div>
@@ -830,7 +830,7 @@ function ReportPage() {
 
           <label className="full-field">
 
-            Description
+            Emergency description
 
             <textarea value={description} placeholder="Example: Water is entering houses and people are trapped..." onChange={event => setDescription(event.target.value)}/>
 
@@ -885,7 +885,7 @@ function ReportPage() {
 
             {loading
             ? "AEGIS PROCESSING..."
-            : "SEND EMERGENCY REPORT"}
+            : "REPORT EMERGENCY"}
 
           </button>
 
@@ -936,7 +936,7 @@ function TrackPage() {
         <main className="center-state">
 
           <h1>
-            Loading report...
+            Loading report status...
           </h1>
 
         </main>
@@ -983,9 +983,8 @@ function TrackPage() {
 
 
             <span>
-              Your report is connected
-              to the AEGIS response
-              network.
+              Your report has been received
+              for AEGIS Command review.
             </span>
 
           </div>
@@ -996,7 +995,7 @@ function TrackPage() {
             <div>
 
               <span>
-                Emergency
+                Incident
               </span>
 
               <strong>
@@ -1009,7 +1008,7 @@ function TrackPage() {
             <div>
 
               <span>
-                Severity
+                Risk assessment
               </span>
 
               <strong>
@@ -1051,7 +1050,7 @@ function TrackPage() {
             <div>
 
               <span>
-                Updated
+                Last updated
               </span>
 
               <strong>
@@ -1076,7 +1075,7 @@ function TrackPage() {
 
 
           <div className="receipt-actions">
-            <div className="citizen-primary-action track-live-status" role="status">LIVE STATUS UPDATES ABOVE</div>
+            <div className="citizen-primary-action track-live-status" role="status">STATUS UPDATES APPEAR ABOVE</div>
 
 
             <Link className="citizen-primary-action" to="/report">
@@ -1106,19 +1105,19 @@ function HospitalIntelligence({ response, }: {
         <div className="ops-panel-title">
 
           <span>
-            HOSPITAL INTELLIGENCE
+            HOSPITAL CAPACITY ASSESSMENT
           </span>
 
           <small>
-            AEGIS HOSPITAL ENGINE
+            RULE-BASED RECOMMENDATION
           </small>
 
         </div>
 
 
         <div className="empty-module">
-          No hospital recommendation
-          returned for this incident.
+          No suitable hospital recommendation
+          is available for this incident.
         </div>
 
       </section>);
@@ -1128,11 +1127,11 @@ function HospitalIntelligence({ response, }: {
       <div className="ops-panel-title">
 
         <span>
-          HOSPITAL INTELLIGENCE
+          HOSPITAL CAPACITY ASSESSMENT
         </span>
 
         <small>
-          AEGIS HOSPITAL ENGINE
+          RULE-BASED RECOMMENDATION
         </small>
 
       </div>
@@ -1232,7 +1231,7 @@ function HospitalIntelligence({ response, }: {
                 display: "block",
                 marginTop: 6,
             }}>
-              ICU FREE{" "}
+              ICU AVAILABLE{" "}
               {hospital.icuBeds}
             </small>)}
 
@@ -1419,13 +1418,13 @@ async function dispatch() {
 
 
             <p>
-              {selectedId ? (commandLoading ? "Loading selected report..." : "Selected report is unavailable.") : "Standby. Submit a report or select a saved incident to begin."}
+              {selectedId ? (commandLoading ? "Loading selected report..." : "Selected report is unavailable.") : "Standing by. Submit a report or select a saved incident to begin."}
             </p>
 
 
             {backendError && <p className="form-alert" role="alert">{backendError}</p>}
-            <Link className="citizen-primary-action" to="/report">CREATE CITIZEN REPORT</Link>
-            <div className="saved-incidents">{reports.map(r => <button key={r.id} onClick={() => setSelectedId(r.id)}>{r.incident_type} ? {r.location} ? {r.id}</button>)}</div>
+            <Link className="citizen-primary-action" to="/report">OPEN REPORTER PORTAL</Link>
+            <div className="saved-incidents">{reports.map(r => <button key={r.id} onClick={() => setSelectedId(r.id)}>{r.incident_type} · {r.location} · {r.id}</button>)}</div>
             <div className="waiting-sequence">
 
               <span>
@@ -1470,7 +1469,7 @@ async function dispatch() {
           <section className="intake-status-board">
 
             <h2>
-              INTAKE MONITOR
+              INTAKE CHANNEL STATUS
             </h2>
 
 
@@ -1481,11 +1480,11 @@ async function dispatch() {
               </span>
 
               <strong>
-                LIVE
+                ACTIVE
               </strong>
 
               <small>
-                Shared API intake
+                Online form intake
               </small>
 
             </div>
@@ -1502,7 +1501,7 @@ async function dispatch() {
               </strong>
 
               <small>
-                Rule-based SMS text intake
+                Rule-based text interpretation
               </small>
 
             </div>
@@ -1519,7 +1518,7 @@ async function dispatch() {
               </strong>
 
               <small>
-                Call transcript intake
+                Voice transcript intake
               </small>
 
             </div>
@@ -1556,7 +1555,7 @@ async function dispatch() {
           <div className="rail-title">
 
             <small>
-              INCOMING INTELLIGENCE
+              INCOMING REPORTS
             </small>
 
             <strong>
@@ -1802,7 +1801,7 @@ async function dispatch() {
                 <div className="map-stage-header">
 
                   <span>
-                    OPERATIONAL MAP
+                    GEOSPATIAL OVERVIEW
                   </span>
 
 
@@ -1814,12 +1813,12 @@ async function dispatch() {
 
 
                     <span className="truth-badge rule">
-                      RED-ZONE INTELLIGENCE
+                      HAZARD ZONE ASSESSMENT
                     </span>
 
 
                     <span className="truth-badge rule">
-                      ROAD SCENARIO
+                      ROUTE SCENARIO
                     </span>
 
                   </div>
@@ -1929,11 +1928,11 @@ async function dispatch() {
                   <div className="ops-panel-title">
 
                     <span>
-                      RESOURCE SCAN
+                      RESOURCE ALLOCATION
                     </span>
 
                     <small>
-                      AEGIS ENGINE
+                      RULE-BASED PLAN
                     </small>
 
                   </div>
@@ -1986,7 +1985,7 @@ async function dispatch() {
     ? "RESPONSE DISPATCHED"
     : actionBusy
       ? "APPROVING RESPONSE..."
-      : "APPROVE RESPONSE & DISPATCH"}
+      : "APPROVE & DISPATCH RESPONSE"}
 </button>
 
   <button
@@ -2003,7 +2002,7 @@ async function dispatch() {
       void startMovement();
     }}
   >
-    START DEMO MOVEMENT
+    START SIMULATED MOVEMENT
   </button>
   </div>
 
@@ -2015,11 +2014,11 @@ async function dispatch() {
                   <div className="ops-panel-title">
 
                     <span>
-                      FIELD ASSIGNMENTS
+                      FIELD RESPONSE OPERATIONS
                     </span>
 
                     <small>
-                      RESPONDER SYNC
+                      ASSIGNMENT STATUS
                     </small>
 
                   </div>
@@ -2101,11 +2100,11 @@ async function dispatch() {
                 <div className="ops-panel-title">
 
                   <span>
-                    HABITATION / RED-ZONE RISK
+                    HABITATION RISK ASSESSMENT
                   </span>
 
                   <small>
-                    ALSO VISUALIZED ON MAP
+                    SHOWN ON GEOSPATIAL OVERVIEW
                   </small>
 
                 </div>
@@ -2182,7 +2181,7 @@ async function dispatch() {
                   </span>
 
                   <small>
-                    CARRYING CAPACITY
+                    SHELTER CAPACITY
                   </small>
 
                 </div>
@@ -2266,7 +2265,7 @@ async function dispatch() {
 
 
                       <button type="button" className="open-command-module" onClick={() => setCommandView("RELOCATION")}>
-                        OPEN RELOCATION COMMAND
+                        OPEN RELOCATION PLAN
                       </button>
 
                     </>)
@@ -2295,14 +2294,14 @@ async function dispatch() {
 
 
                   <h2>
-                    What-If Simulator
+                    Response Scenario Analysis
                   </h2>
 
 
                   <p>
-                    Test how the selected
-                    incident changes without
-                    modifying the live emergency.
+                    Compare planning assumptions
+                    without changing the active
+                    incident or dispatch records.
                   </p>
 
                 </div>
@@ -2315,7 +2314,7 @@ async function dispatch() {
                   </strong>
 
                   <small>
-                    LIVE INCIDENT WILL NOT CHANGE
+                    ACTIVE INCIDENT WILL NOT CHANGE
                   </small>
 
                 </div>
@@ -2382,7 +2381,7 @@ async function dispatch() {
             }}>
                     {simulationLoading
                 ? "AEGIS RECALCULATING..."
-                : "RUN WHAT-IF SCENARIO"}
+                : "RUN SCENARIO ANALYSIS"}
                   </button>
 
 
@@ -2393,10 +2392,10 @@ async function dispatch() {
                 </article>
 
 
-                <ScenarioResult title="CURRENT OPERATION" response={selected.analysis}/>
+                <ScenarioResult title="CURRENT ASSESSMENT" response={selected.analysis}/>
 
 
-                <ScenarioResult title="SIMULATED OPERATION" response={simulation}/>
+                <ScenarioResult title="SCENARIO ASSESSMENT" response={simulation}/>
 
               </div>
 
@@ -2411,18 +2410,18 @@ async function dispatch() {
                 <div>
 
                   <span className="truth-badge simulated">
-                    RISK INTELLIGENCE
+                    RISK ASSESSMENT
                   </span>
 
 
                   <h2>
-                    Relocation Command
+                    Relocation Planning
                   </h2>
 
 
                   <p>
-                    Habitation exposure,
-                    priority and carrying-capacity
+                    Habitation exposure, response
+                    priority, and shelter-capacity
                     allocation.
                   </p>
 
@@ -2525,7 +2524,7 @@ async function dispatch() {
                     </span>
 
                     <small>
-                      CARRYING CAPACITY
+                      SHELTER CAPACITY
                     </small>
 
                   </div>
@@ -2786,7 +2785,7 @@ function ScenarioResult({ title, response, }: {
 
       <div><span>Selected hospital</span><strong>{result.hospital_plan.selected_hospital?.name || "No safe hospital available"}</strong></div>
       <div><span>Allocated / Unallocated</span><strong>{result.relocation_plan?.total_allocated ?? 0} / {result.relocation_plan?.unallocated_people ?? 0}</strong></div>
-      <div><span>Future radius</span><strong>{result.prediction?.future_radius_km.toFixed(2) ?? "Unavailable"} km</strong></div>
+      <div><span>Projected hazard radius</span><strong>{result.prediction?.future_radius_km.toFixed(2) ?? "Unavailable"} km</strong></div>
       <div><span>Response units</span><strong>{result.resource_plan.selected_resources.map(r => r.id).join(", ") || "No compatible available units"}</strong></div>
       <div><span>Staging recommendations</span><strong>{result.prepositioning?.map(r => r.resource_id).join(", ") || "None"}</strong></div>
     </section>);
@@ -2939,7 +2938,7 @@ function ResponderPage() {
                 ? (<>
 
                 <h1>
-                  UNIT UNAVAILABLE
+                  UNIT REQUIRES ATTENTION
                 </h1>
 
                 <p>
@@ -2948,20 +2947,20 @@ function ResponderPage() {
                 </p>
 
                 <div className="truth-badge simulated">
-                  ISSUE / COMMAND AWARE
+                  ISSUE REPORTED TO COMMAND
                 </div>
 
               </>)
                 : (<>
 
-                <h1>{responderLoading ? "CONNECTING TO COMMAND" : responderError ? "CONNECTION UNAVAILABLE" : "UNIT AVAILABLE"}</h1>
+                <h1>{responderLoading ? "CONNECTING TO COMMAND" : responderError ? "CONNECTION UNAVAILABLE" : "AWAITING ASSIGNMENT"}</h1>
 
                 <p>
                   {responderError || "No active assignment from Command Center."}
                 </p>
 
                 <div className="truth-badge real">
-                  AWAITING DISPATCH
+                  READY FOR DISPATCH
                 </div>
 
               </>)}
@@ -3113,7 +3112,7 @@ function ResponderPage() {
 
 
             <span>
-              CITIZEN NOTE
+              REPORTER NOTE
             </span>
 
             <strong>
@@ -3184,8 +3183,8 @@ function ResponderPage() {
 
           <div className="prototype-notice">
 
-            RESPONDER DOES NOT SELECT INCIDENTS.
-            ROUTING DECISIONS COME FROM AEGIS.
+            RESPONDERS ACT ONLY ON ASSIGNED INCIDENTS.
+            ROUTE GUIDANCE IS FOR THIS DEMONSTRATION.
 
           </div>
 
@@ -3195,7 +3194,7 @@ function ResponderPage() {
             <div className="ops-panel-title">
 
               <span>
-                NEARBY RELEVANT INCIDENTS
+                NEARBY RELATED INCIDENTS
               </span>
 
               <small>
@@ -3224,7 +3223,7 @@ function ResponderPage() {
                           {item.report
                     .location}
 
-                          {" · COMMAND AWARE"}
+                          {" · COMMAND NOTIFIED"}
 
                         </small>
 
