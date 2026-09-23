@@ -195,8 +195,9 @@ export function useBrowserVoiceIntake(text: string, onText: (value: string) => v
       if (remaining > 3000) {
         rotateTimer.current = setTimeout(() => {
           rotateTimer.current = null;
-          if (recognition.current !== current || !sessionActive.current) return;
-          try { current.stop(); } catch {}
+          const activeRecognition = current;
+          if (!activeRecognition || recognition.current !== activeRecognition || !sessionActive.current) return;
+          try { activeRecognition.stop(); } catch {}
         }, Math.min(10000, Math.max(2500, remaining - 1200)));
       }
     } catch {
