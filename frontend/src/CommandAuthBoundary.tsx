@@ -239,10 +239,7 @@ export default function CommandAuthBoundary({
     setChecking,
   ] =
     useState(
-      needsAuth &&
-      Boolean(
-        getCommandToken()
-      )
+      needsAuth
     );
 
 
@@ -295,6 +292,11 @@ export default function CommandAuthBoundary({
     );
 
 
+  const [demoAccess, setDemoAccess] = useState<{
+    enabled: boolean;
+    responder?: { username: string; password: string };
+  }>({ enabled: false });
+
   // ==========================================================
   // WATCH ROUTE
   // ==========================================================
@@ -346,200 +348,91 @@ export default function CommandAuthBoundary({
   // VERIFY EXISTING SESSION
   // ==========================================================
 
-  useEffect(
-    () => {
+  useEffect(() => {
+    if (!needsAuth) {
+      setAuthenticated(false);
+      setAuthenticatedRole("");
+      setChecking(false);
+      return;
+    }
 
-      if (
-        !needsAuth
-      ) {
+    const controller = new AbortController();
+    const signal = AbortSignal.any([
+      controller.signal,
+      AbortSignal.timeout(60000),
+    ]);
+    setChecking(true);
+    setAuthenticated(false);
+    setAuthenticatedRole("");
+    setError("");
+    setUsername("");
+    setPassword("");
 
-        setAuthenticated(
-          false
-        );
-
-        setAuthenticatedRole(
-          ""
-        );
-
-        setChecking(
-          false
-        );
-
-        return;
-      }
-
-
-      const token =
-        getCommandToken();
-
-
-      if (
-        !token
-      ) {
-
-        setAuthenticated(
-          false
-        );
-
-        setAuthenticatedRole(
-          ""
-        );
-
-        setChecking(
-          false
-        );
-
-        return;
-      }
-
-
-      const controller =
-        new AbortController();
-
-
-      setChecking(
-        true
-      );
-
-
-      setAuthenticated(
-        false
-      );
-
-
-      fetch(
-        `${API_BASE}/auth/${authPath}/session`,
-        {
-          signal:
-            controller.signal,
+    async function prepareAccess() {
+      try {
+        const configResponse = await fetch(`${API_BASE}/auth/demo`, { signal });
+        if (!configResponse.ok && configResponse.status !== 404) {
+          throw new Error("AEGIS could not load access settings. Please retry.");
         }
-      )
-        .then(
-          response => {
+        const config = configResponse.ok
+          ? await configResponse.json()
+          : { enabled: false };
+        if (controller.signal.aborted) return;
+        setDemoAccess(config);
 
-            if (
-              !response.ok
-            ) {
-              throw new Error(
-                "Session expired"
-              );
-            }
+        if (config.enabled && responder && config.responder) {
+          setUsername(config.responder.username);
+          setPassword(config.responder.password);
+        }
 
-
-            return response.json();
+        // Public evaluations receive a demo session; no administrator password
+        // is embedded in the frontend or requested from the evaluator.
+        if (config.enabled && !responder) {
+          const response = await fetch(`${API_BASE}/auth/command/demo`, {
+            method: "POST", signal,
+          });
+          if (!response.ok) {
+            throw new Error("Demo access is temporarily unavailable. Please reload to retry.");
           }
-        )
-        .then(
-          (
-            session:
-              SessionResponse
-          ) => {
+          const session: LoginResponse = await response.json();
+          if (controller.signal.aborted) return;
+          if (session.role !== "AUTHORITY") throw new Error("Incorrect access role.");
+          setCommandToken(session.token);
+          setAuthenticatedRole(session.role);
+          setAuthenticated(true);
+          return;
+        }
 
-            if (
-              controller
-                .signal
-                .aborted
-            ) {
-              return;
-            }
-
-
-            if (
-              session.role !==
-              expectedRole
-            ) {
-              throw new Error(
-                "Wrong staff role"
-              );
-            }
-
-
-            setAuthenticated(
-              true
-            );
-
-
-            setAuthenticatedRole(
-              session.role
-            );
-
-
-            if (
-              responder
-            ) {
-
-              sessionStorage
-                .setItem(
-                  "aegis_unit",
-                  session.username
-                );
-            }
-          }
-        )
-        .catch(
-          () => {
-
-            if (
-              controller
-                .signal
-                .aborted
-            ) {
-              return;
-            }
-
-
-            clearCommandToken();
-
-
-            if (
-              responder
-            ) {
-
-              sessionStorage
-                .removeItem(
-                  "aegis_unit"
-                );
-            }
-
-
-            setAuthenticated(
-              false
-            );
-
-
-            setAuthenticatedRole(
-              ""
-            );
-          }
-        )
-        .finally(
-          () => {
-
-            if (
-              !controller
-                .signal
-                .aborted
-            ) {
-
-              setChecking(
-                false
-              );
-            }
-          }
-        );
-
-
-      return () =>
-        controller.abort();
-
-    },
-    [
-      needsAuth,
-      authPath,
-      responder,
-      expectedRole,
-    ]
-  );
+        if (!getCommandToken()) return;
+        const response = await fetch(`${API_BASE}/auth/${authPath}/session`, { signal });
+        if (!response.ok) {
+          clearCommandToken();
+          if (responder) sessionStorage.removeItem("aegis_unit");
+          return;
+        }
+        const session: SessionResponse = await response.json();
+        if (controller.signal.aborted) return;
+        if (session.role !== expectedRole) {
+          clearCommandToken();
+          if (responder) sessionStorage.removeItem("aegis_unit");
+          return;
+        }
+        setAuthenticatedRole(session.role);
+        setAuthenticated(true);
+        if (responder) sessionStorage.setItem("aegis_unit", session.username);
+      } catch (accessError) {
+        if (!controller.signal.aborted) {
+          setError(accessError instanceof Error
+            ? accessError.message
+            : "AEGIS could not connect. Please reload to retry.");
+        }
+      } finally {
+        if (!controller.signal.aborted) setChecking(false);
+      }
+    }
+    void prepareAccess();
+    return () => controller.abort();
+  }, [needsAuth, authPath, responder, expectedRole]);
 
 
   // ==========================================================
@@ -795,7 +688,9 @@ export default function CommandAuthBoundary({
           <p>
 
             {responder
-              ? "Use a demonstration responder unit ID assigned in AEGIS."
+              ? (demoAccess.enabled
+                ? "Demonstration credentials are prefilled. Open the portal to continue."
+                : "Use a demonstration responder unit ID assigned in AEGIS.")
               : "Access is restricted to authorized AEGIS Command personnel."}
 
           </p>
@@ -920,7 +815,7 @@ export default function CommandAuthBoundary({
 
     <>
 
-      <button
+      {(!demoAccess.enabled || responder) && <button
 
         type="button"
 
@@ -928,6 +823,10 @@ export default function CommandAuthBoundary({
           () => {
 
             clearCommandToken();
+            if (responder && demoAccess.enabled && demoAccess.responder) {
+              setUsername(demoAccess.responder.username);
+              setPassword(demoAccess.responder.password);
+            }
 
 
             if (
@@ -974,7 +873,7 @@ export default function CommandAuthBoundary({
           ? "RESPONDER SIGN OUT"
           : "COMMAND SIGN OUT"}
 
-      </button>
+      </button>}
 
 
       {children}

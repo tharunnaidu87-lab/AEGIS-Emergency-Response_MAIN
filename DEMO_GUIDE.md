@@ -2,6 +2,21 @@
 
 Allow about five minutes. Use a laptop for Command and optionally browser mobile emulation for Responder.
 
+## Public SIH evaluator access
+
+On the demonstration backend, set `AEGIS_PUBLIC_DEMO=true` and keep
+`AEGIS_COMMAND_AUTH_SECRET` configured. Deploy both backend and frontend changes.
+The Command Center, simulation and relocation pages then open automatically
+without asking evaluators for administrator credentials. The Responder login
+prefills the public demo unit `POL-02` and password `AEGIS-demo-only`; click
+**OPEN RESPONDER PORTAL** to enter. The existing interface and colours are unchanged.
+
+Use this mode only with simulated reports and a demonstration database: anyone
+with the site link can access the demo command functions. No administrator or
+configured responder password is returned to the browser. Setting the flag back
+to `false` restores staff sign-in and invalidates public demo sessions.
+The reset endpoint remains controlled separately by `AEGIS_ENABLE_RESET`.
+
 ## Start with an empty operation
 
 Use the two launcher commands in [README.md](README.md), adding **-FreshDemo** for the backend. This creates a new database without clearing saved work.

@@ -22,6 +22,13 @@ from starlette.responses import JSONResponse
 
 router = APIRouter(tags=["staff-auth"])
 TOKEN_TTL_SECONDS = 8 * 60 * 60
+DEMO_COMMAND_USER = "sih-evaluator"
+DEMO_RESPONDER_USER = "POL-02"
+DEMO_RESPONDER_PASSWORD = "AEGIS-demo-only"
+
+
+def public_demo_enabled() -> bool:
+    return os.getenv("AEGIS_PUBLIC_DEMO", "false").strip().lower() == "true"
 
 
 class CommandLoginRequest(BaseModel):
@@ -55,7 +62,7 @@ def _sign(payload_part: str, secret: str) -> str:
     return _b64encode(digest)
 
 
-def create_command_token(username: str, role="AUTHORITY") -> tuple[str, int]:
+def create_command_token(username: str, role="AUTHORITY", *, demo=False) -> tuple[str, int]:
     _, _, secret = _settings()
     if not secret:
         raise HTTPException(503, "Command authentication is not configured.")
@@ -67,6 +74,8 @@ def create_command_token(username: str, role="AUTHORITY") -> tuple[str, int]:
         "exp": expires_at,
         "iat": int(time.time()),
     }
+    if demo:
+        payload["demo"] = True
     payload_part = _b64encode(
         json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
     )
@@ -89,6 +98,11 @@ def validate_command_token(token: str) -> dict:
         if int(payload.get("exp", 0)) <= int(time.time()):
             raise ValueError("expired")
         username, _, _ = _settings()
+        if payload.get("demo"):
+            if not public_demo_enabled():
+                raise ValueError("public demonstration access is disabled")
+            if payload["role"] == "AUTHORITY":
+                username = DEMO_COMMAND_USER
         if payload["role"] == "RESPONDER":
             username = str(payload.get("sub", "")) if str(payload.get("sub", "")) in responder_accounts() else ""
         if not username or not _equal(str(payload.get("sub", "")), username):
@@ -149,6 +163,25 @@ def command_session(request: Request):
         "username": payload["sub"],
         "expires_at": payload["exp"],
     }
+
+
+@router.get("/auth/demo")
+def demo_access():
+    # These are deliberately public demo credentials, never administrator secrets.
+    if not public_demo_enabled():
+        return {"enabled": False}
+    return {"enabled": True, "responder": {
+        "username": DEMO_RESPONDER_USER, "password": DEMO_RESPONDER_PASSWORD,
+    }}
+
+
+@router.post("/auth/command/demo")
+def command_demo_login():
+    if not public_demo_enabled():
+        raise HTTPException(404, "Public demonstration access is disabled.")
+    token, expires_at = create_command_token(DEMO_COMMAND_USER, demo=True)
+    return {"status": "AUTHENTICATED", "role": "AUTHORITY",
+            "username": DEMO_COMMAND_USER, "token": token, "expires_at": expires_at}
 
 
 def _is_command_only(method: str, path: str) -> bool:
@@ -230,9 +263,12 @@ def responder_accounts():
         accounts = json.loads(os.getenv("AEGIS_RESPONDER_ACCOUNTS", "{}"))
         from engines.resource_engine import load_resources
         ids = {r["id"] for r in load_resources()}
-        return {k: v for k, v in accounts.items() if k in ids and isinstance(v, str) and v}
+        configured = {k: v for k, v in accounts.items() if k in ids and isinstance(v, str) and v}
     except (ValueError, AttributeError):
-        return {}
+        configured = {}
+    if public_demo_enabled():
+        configured.setdefault(DEMO_RESPONDER_USER, DEMO_RESPONDER_PASSWORD)
+    return configured
 
 
 @router.post("/auth/responder/login")
@@ -240,9 +276,12 @@ def responder_login(credentials: CommandLoginRequest):
     accounts = responder_accounts()
     if not accounts:
         raise HTTPException(503, "Responder access needs local administrator configuration.")
-    if not _equal(credentials.password, accounts.get(credentials.username, "")) or credentials.username not in accounts:
+    demo_login = (public_demo_enabled()
+                  and _equal(credentials.username, DEMO_RESPONDER_USER)
+                  and _equal(credentials.password, DEMO_RESPONDER_PASSWORD))
+    if not demo_login and (not _equal(credentials.password, accounts.get(credentials.username, "")) or credentials.username not in accounts):
         raise HTTPException(401, "Check your unit ID and password.")
-    token, expires = create_command_token(credentials.username, "RESPONDER")
+    token, expires = create_command_token(credentials.username, "RESPONDER", demo=demo_login)
     return {"token": token, "expires_at": expires, "role": "RESPONDER", "username": credentials.username}
 
 
